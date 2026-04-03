@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление Кумите</title>
+    <style>
+        :root { --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        
+        /* Сетка матчей */
+        .round-title { background: #ddd; padding: 8px; margin: 20px 0 10px; border-radius: 4px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 8px; border-left: 6px solid #999; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .card.finished { border-left-color: #28a745; opacity: 0.8; }
+        
+        .match-info { display: flex; justify-content: space-between; font-size: 0.8em; color: #666; margin-bottom: 10px; }
+        .vs-area { display: flex; align-items: center; justify-content: space-around; text-align: center; }
+        .score { font-size: 1.5em; font-weight: bold; display: block; }
+        .aka { color: var(--aka); } .shiro { color: var(--shiro); }
+        
+        .btn { cursor: pointer; padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .btn-blue { background: var(--shiro); color: white; width: 100%; margin-top: 10px; }
+        .btn-red { background: var(--aka); color: white; }
+        .btn-generate { background: #333; color: white; }
+
+        /* Нативная модалка */
+        #modalOverlay { 
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%; 
+            background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal { background: white; padding: 25px; border-radius: 12px; width: 350px; text-align: center; }
+        .input-group { display: flex; justify-content: space-between; margin: 20px 0; }
+        .input-score { width: 60px; font-size: 1.2em; text-align: center; padding: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Категория #{{ category_id }}</h1>
+        <div>
+            <button class="btn btn-generate" onclick="generateBracket()">⚡ Начать турнир</button>
+            <button class="btn" style="background:#ccc" onclick="loadMatches()">🔄 Обновить</button>
+        </div>
+    </div>
+
+    <div id="bracketContainer">
+        <!-- Сюда JS отрисует матчи -->
+    </div>
+</div>
+
+<!-- Нативное модальное окно -->
+<div id="modalOverlay">
+    <div class="modal">
+        <h3>Бой №<span id="mNum"></span></h3>
+        <input type="hidden" id="activeMatchId">
+        
+        <div class="input-group">
+            <div>
+                <label class="aka">AKA (ID: <span id="akaIdLabel"></span>)</label><br>
+                <input type="number" id="akaScore" class="input-score" value="0">
+            </div>
+            <div>
+                <label class="shiro">SHIRO (ID: <span id="shiroIdLabel"></span>)</label><br>
+                <input type="number" id="shiroScore" class="input-score" value="0">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-direction: column;">
+            <button class="btn btn-red" onclick="saveMatch('aka')">🏆 Победа AKA</button>
+            <button class="btn btn-blue" onclick="saveMatch('shiro')">🏆 Победа SHIRO</button>
+            <button class="btn" style="background:#eee" onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const tId = "{{ tournament_id }}";
+    const cId = "{{ category_id }}";
+    let currentAka = null;
+    let currentShiro = null;
+
+    // 1. Загрузка матчей (Твой API Шаг 1)
+    async function loadMatches() {
+        try {
+            const res = await fetch(`/${tId}/kumite/${cId}`);
+            const matches = await res.json();
+            renderMatches(matches);
+        } catch (e) { console.error(e); }
+    }
+
+    // function renderMatches(matches) {
+    //     const container = document.getElementById('bracketContainer');
+    //     container.innerHTML = '';
+        
+    //     const rounds = {};
+    //     matches.forEach(m => {
+    //         if (!rounds[m.round_number]) rounds[m.round_number] = [];
+    //         rounds[m.round_number].push(m);
+    //     });
+
+    //     for (const r in rounds) {
+    //         const rDiv = document.createElement('div');
+    //         rDiv.innerHTML = `<div class="round-title">Раунд ${r}</div>`;
+    //         const grid = document.createElement('div');
+    //         grid.className = 'grid';
+            
+    //         rounds[r].forEach(m => {
+    //             const isReady = m.aka_id && m.shiro_id;
+    //             grid.innerHTML += `
+    //                 <div class="card ${m.is_finished ? 'finished' : ''}">
+    //                     <div class="match-info">
+    //                         <span>Бой #${m.number}</span>
+    //                         <span>${m.is_finished ? 'Завершен' : 'Ожидание'}</span>
+    //                     </div>
+    //                     <div class="vs-area">
+    //                         <div class="aka">ID: ${m.aka_id || '?'}<span class="score">${m.aka_score}</span></div>
+    //                         <div style="color:#999">VS</div>
+    //                         <div class="shiro">ID: ${m.shiro_id || '?'}<span class="score">${m.shiro_score}</span></div>
+    //                     </div>
+    //                     ${(!m.is_finished && isReady) ? 
+    //                         `<button class="btn btn-blue" onclick="openModal(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">Счёт</button>` : ''}
+    //                 </div>
+    //             `;
+    //         });
+    //         rDiv.appendChild(grid);
+    //         container.appendChild(rDiv);
+    //     }
+    // }
+
+    function renderMatches(matches) {
+        const container = document.getElementById('bracketContainer');
+        container.innerHTML = '';
+        
+        // Группируем по раундам
+        const rounds = {};
+        matches.forEach(m => {
+            if (!rounds[m.round_number]) rounds[m.round_number] = [];
+            rounds[m.round_number].push(m);
+        });
+    
+        // Сортируем раунды (1, 2, 3...)
+        const sortedRounds = Object.keys(rounds).sort((a, b) => a - b);
+    
+        sortedRounds.forEach(r => {
+            const rDiv = document.createElement('div');
+            rDiv.innerHTML = `<div class="round-title">Раунд ${r}</div>`;
+            const grid = document.createElement('div');
+            grid.className = 'grid';
+            
+            // Сортируем матчи внутри раунда по их порядковому номеру
+            rounds[r].sort((a, b) => a.number - b.number).forEach(m => {
+                grid.innerHTML += createMatchHtml(m);
+            });
+            rDiv.appendChild(grid);
+            container.appendChild(rDiv);
+        });
+    }
+
+    function createMatchHtml(m) {
+        const isFinished = m.is_finished;
+        const hasBothParticipants = m.aka_id !== null && m.shiro_id !== null;
+
+        // Текст-заглушка, если участник еще не определен
+        const akaName = m.aka_id ? `ID: ${m.aka_id}` : `<span style="color:#aaa; font-size:0.8em">Победитель боя...</span>`;
+        const shiroName = m.shiro_id ? `ID: ${m.shiro_id}` : `<span style="color:#aaa; font-size:0.8em">Победитель боя...</span>`;
+
+        return `
+            <div class="card ${isFinished ? 'finished' : ''}">
+                <div class="match-info">
+                    <span>Матч №${m.number}</span>
+                    <span>${isFinished ? '✅ Завершен' : '⏳ Ожидание'}</span>
+                </div>
+                <div class="vs-area">
+                    <div class="aka">
+                        ${akaName}
+                        <span class="score">${m.aka_score}</span>
+                    </div>
+                    <div style="color:#ccc; margin: 0 10px;">VS</div>
+                    <div class="shiro">
+                        ${shiroName}
+                        <span class="score">${m.shiro_score}</span>
+                    </div>
+                </div>
+                ${(!isFinished && hasBothParticipants) ? 
+                    `<button class="btn btn-blue" onclick="openModal(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">Ввести счет</button>` : 
+                    `<button class="btn" style="background:#eee; color:#999; cursor:not-allowed" disabled>Ждем бойцов</button>`}
+            </div>
+        `;
+    }
+
+    // Управление модалкой
+    function openModal(id, num, aka, shiro) {
+        document.getElementById('activeMatchId').value = id;
+        document.getElementById('mNum').innerText = num;
+        document.getElementById('akaIdLabel').innerText = aka;
+        document.getElementById('shiroIdLabel').innerText = shiro;
+        currentAka = aka;
+        currentShiro = shiro;
+        document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+    // 2. Сохранение (Твой API Шаг 2)
+    async function saveMatch(winnerSide) {
+        const matchId = document.getElementById('activeMatchId').value;
+        const body = {
+            aka_score: parseInt(document.getElementById('akaScore').value),
+            shiro_score: parseInt(document.getElementById('shiroScore').value),
+            winner_id: (winnerSide === 'aka') ? currentAka : currentShiro,
+            is_finished: true
+        };
+
+        await fetch(`/${tId}/kumite/match/${matchId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+
+        closeModal();
+        loadMatches();
+    }
+
+    // 3. Генерация (Твой API Шаг 3)
+    async function generateBracket() {
+        await fetch(`/${tId}/kumite/generate/${cId}`, { method: 'POST' });
+        loadMatches();
+    }
+
+    // Первый запуск
+    window.onload = loadMatches;
+</script>
+
+</body>
+</html>

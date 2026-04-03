@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Сетка: {{ category.name }}</title>
+    <style>
+        :root {
+            --aka: #dc3545;
+            --shiro: #0d6efd;
+            --line: #cbd5e0;
+            --bg: #f7fafc;
+            --node: #ffffff;
+            --winner-bg: #f0fff4;
+            --winner-text: #2f855a;
+        }
+
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #2d3748; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .back-link { text-decoration: none; color: #4a5568; font-weight: bold; font-size: 0.9rem; }
+
+        /* Контейнер сетки */
+        .bracket-container { 
+            display: flex; 
+            flex-direction: row; 
+            gap: 60px; 
+            padding: 40px; 
+            overflow-x: auto; 
+            align-items: stretch;
+            min-height: 600px;
+        }
+
+        .round { display: flex; flex-direction: column; justify-content: space-around; width: 240px; flex-shrink: 0; }
+        .round-name { text-align: center; font-size: 0.75rem; font-weight: 800; color: #a0aec0; text-transform: uppercase; margin-bottom: 20px; }
+
+        /* Элемент матча */
+        .match-wrapper { position: relative; display: flex; flex-direction: column; justify-content: center; margin: 20px 0; }
+        
+        .match-card { 
+            background: var(--node); 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            position: relative; 
+            z-index: 2; 
+            transition: all 0.2s;
+        }
+        
+        .match-card.active { border: 2px solid #4299e1; cursor: pointer; }
+        .match-card.active:hover { transform: translateY(-2px); box-shadow: 0 10px 15px rgba(66, 153, 225, 0.2); }
+        .match-card.finished { opacity: 0.85; border-left: 4px solid #48bb78; }
+
+        .m-num { position: absolute; left: -35px; top: 50%; transform: translateY(-50%); font-size: 0.7rem; font-weight: bold; color: #cbd5e0; }
+
+        .player { display: flex; justify-content: space-between; padding: 10px 15px; font-size: 0.95rem; border-bottom: 1px solid #edf2f7; }
+        .player:last-child { border-bottom: none; }
+        .player.winner { background: var(--winner-bg); color: var(--winner-text); font-weight: bold; }
+        
+        .score { font-weight: 900; color: #4a5568; margin-left: 10px; }
+
+        /* Линии-коннекторы */
+        .match-wrapper::after {
+            content: ""; position: absolute; right: -60px; width: 60px;
+            border-color: var(--line); border-style: solid; border-width: 0;
+        }
+        /* Верхний матч в паре */
+        .round:not(:last-child) .match-wrapper:nth-child(even)::after {
+            top: 50%; height: 50%; border-right-width: 2px; border-top-width: 2px; border-radius: 0 12px 0 0;
+        }
+        /* Нижний матч в паре */
+        .round:not(:last-child) .match-wrapper:nth-child(odd)::after {
+            bottom: 50%; height: 50%; border-right-width: 2px; border-bottom-width: 2px; border-radius: 0 0 12px 0;
+        }
+        .round:last-child .match-wrapper::after { display: none; }
+
+        /* Модалка ввода результата */
+        #modalOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal { background: white; padding: 30px; border-radius: 16px; width: 350px; box-shadow: 0 20px 25px rgba(0,0,0,0.2); text-align: center; }
+        .score-row { display: flex; justify-content: space-around; margin: 25px 0; }
+        .score-row input { width: 70px; height: 60px; font-size: 2rem; text-align: center; border: 2px solid #e2e8f0; border-radius: 10px; }
+        
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 10px; transition: 0.2s; }
+        .btn-aka { background: var(--aka); color: white; }
+        .btn-shiro { background: var(--shiro); color: white; }
+        .btn-cancel { background: #f7fafc; color: #a0aec0; }
+        
+        .repechage-section { margin-top: 50px; padding: 30px; border-top: 3px dashed #e2e8f0; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <a href="javascript:history.back()" class="back-link">← К списку турнира</a>
+        <h1 style="margin: 5px 0;">{{ category.name }}</h1>
+    </div>
+    <div style="text-align: right; font-size: 0.8rem; color: #a0aec0;">
+        КУМИТЕ | Турнир #{{ tournament_id }}
+    </div>
+</div>
+
+<div class="bracket-container">
+    {% for r_num in bracket.keys()|sort %}
+    <div class="round">
+        <div class="round-name">Раунд {{ r_num }}</div>
+        {% for m in bracket[r_num] if not m.is_repechage %}
+        <div class="match-wrapper">
+            <span class="m-num">№{{ m.number }}</span>
+            <div class="match-card {{ 'active' if m.aka_id and m.shiro_id and not m.is_finished else '' }} {{ 'finished' if m.is_finished else '' }}"
+                 onclick="openMatchModal({{ m.id }}, {{ m.number }}, '{{ m.aka_id }}', '{{ m.shiro_id }}')">
+                
+                <div class="player {{ 'winner' if m.winner_id == m.aka_id and m.is_finished else '' }}">
+                    <span>{{ m.aka_id if m.aka_id else '???' }}</span>
+                    <span class="score">{{ m.aka_score if m.is_finished else '' }}</span>
+                </div>
+                
+                <div class="player {{ 'winner' if m.winner_id == m.shiro_id and m.is_finished else '' }}">
+                    <span>{{ m.shiro_id if m.shiro_id else '???' }}</span>
+                    <span class="score">{{ m.shiro_score if m.is_finished else '' }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Секция боя за 3 место -->
+{% set tp_match = [] %}
+{% for r in bracket.values() %}{% for m in r %}{% if m.is_repechage %}{% set _ = tp_match.append(m) %}{% endif %}{% endfor %}{% endfor %}
+
+{% if tp_match %}
+<div class="repechage-section">
+    <h3>🥉 Малый финал (За 3 место)</h3>
+    {% for m in tp_match %}
+    <div class="match-wrapper" style="width: 240px;">
+        <span class="m-num">№{{ m.number }}</span>
+        <div class="match-card {{ 'active' if m.aka_id and m.shiro_id and not m.is_finished else '' }} {{ 'finished' if m.is_finished else '' }}"
+             onclick="openMatchModal({{ m.id }}, {{ m.number }}, '{{ m.aka_id }}', '{{ m.shiro_id }}')">
+            <div class="player {{ 'winner' if m.winner_id == m.aka_id and m.is_finished else '' }}">
+                <span>{{ m.aka_id if m.aka_id else '---' }}</span>
+                <span class="score">{{ m.aka_score if m.is_finished else '' }}</span>
+            </div>
+            <div class="player {{ 'winner' if m.winner_id == m.shiro_id and m.is_finished else '' }}">
+                <span>{{ m.shiro_id if m.shiro_id else '---' }}</span>
+                <span class="score">{{ m.shiro_score if m.is_finished else '' }}</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Модальное окно -->
+<div id="modalOverlay">
+    <div class="modal">
+        <h2 id="modalTitle" style="margin-top:0">Бой №</h2>
+        <input type="hidden" id="fieldMatchId">
+        
+        <div class="score-row">
+            <div>
+                <label style="color:var(--aka); font-weight:bold;">AKA</label><br>
+                <small id="akaIdDisp"></small><br>
+                <input type="number" id="akaInput" value="0">
+            </div>
+            <div>
+                <label style="color:var(--shiro); font-weight:bold;">SHIRO</label><br>
+                <small id="shiroIdDisp"></small><br>
+                <input type="number" id="shiroInput" value="0">
+            </div>
+        </div>
+
+        <button class="btn btn-aka" onclick="sendScore('aka')">Победа AKA</button>
+        <button class="btn btn-shiro" onclick="sendScore('shiro')">Победа SHIRO</button>
+        <button class="btn btn-cancel" onclick="closeModal()">Отмена</button>
+    </div>
+</div>
+
+<script>
+    const tournamentId = "{{ tournament_id }}";
+    let tempIds = { aka: null, shiro: null };
+
+    function openMatchModal(id, num, aka, shiro) {
+        // Открываем только если оба участника определены и бой не закончен
+        if (!aka || aka === 'None' || !shiro || shiro === 'None') return;
+
+        document.getElementById('fieldMatchId').value = id;
+        document.getElementById('modalTitle').innerText = "Бой №" + num;
+        document.getElementById('akaIdDisp').innerText = "ID: " + aka;
+        document.getElementById('shiroIdDisp').innerText = "ID: " + shiro;
+        
+        tempIds.aka = aka;
+        tempIds.shiro = shiro;
+        
+        document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('modalOverlay').style.display = 'none';
+    }
+
+    async function sendScore(winnerSide) {
+        const matchId = document.getElementById('fieldMatchId').value;
+        const akaScore = document.getElementById('akaInput').value;
+        const shiroScore = document.getElementById('shiroInput').value;
+        
+        const payload = {
+            aka_score: parseInt(akaScore),
+            shiro_score: parseInt(shiroScore),
+            winner_id: winnerSide === 'aka' ? parseInt(tempIds.aka) : parseInt(tempIds.shiro),
+            is_finished: true
+        };
+
+        const response = await fetch(`/${tournamentId}/kumite/match/${matchId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            location.reload(); // Обновляем сетку, чтобы увидеть результат и продвижение
+        } else {
+            alert("Ошибка сохранения результата");
+        }
+    }
+</script>
+
+</body>
+</html>

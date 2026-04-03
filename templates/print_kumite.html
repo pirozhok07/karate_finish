@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Протокол: {{ category.name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 20px; }
+        @media print { .no-print { display: none; } @page { size: A4 landscape; } }
+        
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; margin-bottom: 20px; padding-bottom: 5px; }
+        .header h1 { margin: 0; font-size: 18px; }
+
+        .bracket-table { display: flex; align-items: flex-start; justify-content: flex-start; gap: 0; }
+        .round-col { display: flex; flex-direction: column; justify-content: space-around; min-width: 180px; }
+
+        /* Стиль ячейки матча */
+        .match-cell { display: flex; flex-direction: column; justify-content: center; height: 80px; position: relative; }
+        .match-data { border: 1px solid #000; background: #fff; width: 160px; margin-left: 10px; }
+        
+        .player-row { border-bottom: 1px solid #000; height: 22px; display: flex; justify-content: space-between; align-items: center; padding: 0 5px; }
+        .player-row:last-child { border-bottom: none; }
+        .score-box { border-left: 1px solid #000; width: 25px; text-align: center; font-weight: bold; }
+        
+        .m-id { position: absolute; left: -10px; font-size: 9px; font-weight: bold; }
+
+        /* Простые прямые линии-коннекторы */
+        .line { position: absolute; right: -20px; width: 20px; border-top: 1px solid #000; }
+        .line-v { position: absolute; right: -20px; width: 1px; border-right: 1px solid #000; }
+
+        /* Логика линий для пар */
+        .match-cell:nth-child(odd) .line { top: 50%; }
+        .match-cell:nth-child(even) .line { bottom: 50%; }
+        .match-cell:nth-child(odd) .line-v { top: 50%; height: 50%; }
+        .match-cell:nth-child(even) .line-v { bottom: 50%; height: 50%; }
+        
+        .round-col:last-child .line, .round-col:last-child .line-v { display: none; }
+
+        .footer { margin-top: 30px; display: flex; gap: 50px; }
+        .sign { border-bottom: 1px solid #000; width: 150px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>{{ category.name }}</h1>
+        <span>КУМИТЕ | Турнир #{{ tournament_id }}</span>
+    </div>
+    <button class="no-print" onclick="window.print()">ПЕЧАТЬ</button>
+</div>
+
+<div class="bracket-table">
+    {% for r_num in bracket.keys()|sort %}
+    <div class="round-col" style="height: {{ 80 * (2**(bracket.keys()|length - 1)) }}px;">
+        {% for m in bracket[r_num] if not m.is_repechage %}
+        <div class="match-cell">
+            <span class="m-id">№{{ m.number }}</span>
+            <div class="match-data">
+                <div class="player-row">
+                    <span>{{ m.aka_id if m.aka_id else "" }}</span>
+                    <span class="score-box">{{ m.aka_score if m.is_finished else "" }}</span>
+                </div>
+                <div class="player-row">
+                    <span>{{ m.shiro_id if m.shiro_id else "" }}</span>
+                    <span class="score-box">{{ m.shiro_score if m.is_finished else "" }}</span>
+                </div>
+            </div>
+            <div class="line"></div>
+            <div class="line-v"></div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+{% set rep = [] %}
+{% for r in bracket.values() %}{% for m in r %}{% if m.is_repechage %}{% set _ = rep.append(m) %}{% endif %}{% endfor %}{% endfor %}
+{% if rep %}
+<div style="margin-top:20px; border-top: 1px dashed #000; padding-top:10px;">
+    <strong>БОЙ ЗА 3 МЕСТО:</strong> 
+    №{{ rep[0].number }} — ID: {{ rep[0].aka_id }} vs ID: {{ rep[0].shiro_id }}
+</div>
+{% endif %}
+
+<div class="footer">
+    <div>Судья: <span class="sign"></span></div>
+    <div>Секретарь: <span class="sign"></span></div>
+</div>
+
+</body>
+</html>

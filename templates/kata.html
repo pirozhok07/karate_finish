@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Судейство КАТА: Система WKF</title>
+    <style>
+        :root { 
+            --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; 
+            --green: #28a745; --dark: #2c3e50; --gray: #a0aec0; --border: #e2e8f0;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; }
+
+        .top-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: var(--dark); color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 25px; 
+        }
+
+        .cat-card { background: white; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
+        .cat-header { background: #34495e; color: white; padding: 15px 25px; cursor: pointer; }
+
+        .round-nav { background: #f8fafc; padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: center; align-items: center; gap: 20px; }
+        
+        .round-group-container { display: none; padding: 20px; }
+        .round-group-container.active { display: block; }
+
+        .score-table { width: 100%; border-collapse: collapse; }
+        .score-table th { background: #edf2f7; padding: 12px; font-size: 0.75rem; text-transform: uppercase; }
+        .score-table td { padding: 10px; border: 1px solid var(--border); text-align: center; }
+        
+        .score-input { 
+            width: 65px; padding: 10px; border: 2px solid var(--border); 
+            border-radius: 8px; text-align: center; font-weight: bold; font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+        .score-input:focus { border-color: var(--shiro); background: #f0f7ff; outline: none; }
+        
+        /* Автоматическое зачеркивание */
+        .score-input.excluded { 
+            text-decoration: line-through; 
+            color: var(--gray); 
+            background: #fdf2f2; 
+            border-color: #feb2b2;
+            opacity: 0.6;
+        }
+
+        .total-cell { font-size: 2rem; font-weight: 900; color: var(--aka); }
+        .btn { border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; text-decoration: none; display: inline-block; }
+        .btn-outline { border: 1px solid var(--border); background: white; color: var(--dark); }
+        .btn-warning { background: #f6e05e; color: #744210; }
+        
+        .saving-row { opacity: 0.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <div>
+            <h1 style="margin:0; font-size: 1.4rem;">🏆 КАТА: ПРАВИЛА WKF (5 СУДЕЙ)</h1>
+            <div style="font-size: 0.8rem; color: var(--gray);">Мин. и макс. оценки отбрасываются автоматически.</div>
+        </div>
+        <a href="/view/{{ t_id }}" class="btn btn-outline">В МЕНЮ</a>
+    </div>
+
+    {% macro render_score_table(cat, rnd, t_id) %}
+        <table class="score-table">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th style="text-align: left;">СПОРТСМЕН</th>
+                    <th style="text-align: center;">КАТА</th>
+                    <th>S1</th><th>S2</th><th>S3</th><th>S4</th><th>S5</th>
+                    <th style="background: #fff5f5; width: 120px;">ИТОГО</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in rnd.scores %}
+                <tr id="row-{{ p.id }}">
+                    <td style="color: var(--gray);">{{ loop.index }}</td>
+                    <td style="text-align: left;">
+                        {% if p.team_id and p.team %}
+                            <div style="color: var(--shiro); font-weight: bold; margin-bottom: 2px;">
+                                👥 {{ p.team.name or 'ГРУППА' }}
+                            </div>
+                            <div style="font-size: 0.75rem; color: #666; line-height: 1.2;">
+                                {% for member in p.team.members %}
+                                    {{ member.last_name }} {{ member.first_name[0] }}.{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% elif p.athlete %}
+                            <b>{{ p.athlete.last_name }} {{ p.athlete.first_name }}</b>
+                            <div style="font-size: 0.75rem; color: var(--gray);">{{ p.athlete.club or '-' }}</div>
+                        {% else %}
+                            <span style="color: red;">Ошибка данных</span>
+                        {% endif %}
+                    </td>
+                    <!-- Блок выбора разрешенных КАТА -->
+                    <td style="min-width: 100px;">
+                        <select class="kata-select js-kata-{{ p.id }}" 
+        onchange="savePerformanceData({{ p.id }})" 
+        style="width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem;">
+
+                            <option value="">---</option>
+                            {% for assoc in cat.kata_associations %}
+                            {# Логика фильтрации: показываем ката, если оно для всех кругов (0), #}
+                            {# либо если лимит совпадает с номером текущего круга (rnd.round_number) #}
+                                {% if assoc.round_limit == 0 or 
+                                    (assoc.round_limit == 1 and rnd.round_number == 1) or 
+                                    (assoc.round_limit == 2 and (rnd.round_number == 2 or rnd.round_number == 3)) %}
+                                    
+                                    <option value="{{ assoc.kata.name }}" 
+                                            {% if p.performance_kata == assoc.kata.name %}selected{% endif %}
+                                            style="{{ 'color: #af6400; font-weight: bold;' if assoc.kata.is_advanced else '' }}">
+                                        {{ assoc.kata.name }} {{ '★' if assoc.kata.is_advanced else '' }}
+                                    </option>
+                                    
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </td>
+                    {% for i in range(1, 6) %}
+                    {% set field = 's' ~ i %}
+                    <td><input type="number" step="0.1" class="score-input js-score-{{ p.id }}" data-id="{{ p.id }}" id="s{{ i }}-{{ p.id }}" value="{{ p[field] or '' }}"></td>
+                    {% endfor %}
+                    <td class="total-cell" id="total-{{ p.id }}">{{ p.total_score or '0.0' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="text-align: right; margin-top: 20px;">
+            {% if not rnd.is_finished %}
+                <button class="btn btn-warning" onclick="finishRound(this, {{ t_id }}, {{ rnd.id }})">🏁 ЗАВЕРШИТЬ</button>
+            {% else %}
+                <span style="color: var(--green); font-weight: bold;">✓ ЗАВЕРШЕНО</span>
+            {% endif %}
+        </div>
+    {% endmacro %}
+
+    {% for cat in categories %}
+    {% if cat.rounds %}
+    <div class="cat-card" id="cat-block-{{ loop.index }}">
+        <div class="cat-header" onclick="toggleCategory('cat-content-{{ loop.index }}')">
+            <h3 style="margin:0">{{ cat.name }}</h3>
+        </div>
+
+        <div id="cat-content-{{ loop.index }}">
+            <div class="round-nav">
+                <button class="btn btn-outline" onclick="prevRound('cat-block-{{ loop.index }}')">◀</button>
+                <div style="font-weight: bold;">КРУГ <span class="current-round-label">1</span></div>
+                <button class="btn btn-outline" onclick="nextRound('cat-block-{{ loop.index }}')">▶</button>
+            </div>
+
+            {% for rnd in cat.rounds if rnd.is_tie_break is not sameas true %}
+            <div class="round-group-container {% if loop.first %}active{% endif %}" data-round-idx="{{ loop.index }}">         
+                
+                <div class="round-container main-round" style="display: block;">
+                    <h4 style="margin: 10px 0; color: var(--dark);">Круг {{ rnd.round_number|int }}</h4>
+                    {{ render_score_table(cat, rnd, t_id) }}
+                </div>
+
+                {# Переигровки, привязанные к этому кругу #}
+                {% for tb_rnd in cat.rounds if tb_rnd.is_tie_break is sameas true and tb_rnd.parent_round_id == rnd.id %}
+                <div class="round-container tie-break-round" style="display: block; margin-top: 30px; border-top: 2px dashed #f6ad55; padding-top: 15px;">
+                    <div style="background: #fff5f5; padding: 5px 10px; display: inline-block; border-radius: 4px; border: 1px solid #f6ad55; margin-bottom: 10px;">
+                        ⚠️ ПЕРЕИГРОВКА
+                    </div>
+                    {{ render_score_table(cat, tb_rnd, t_id) }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
+</div>
+
+<script>
+// 1. Делегирование событий для ввода оценок
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('score-input')) {
+        const rowId = e.target.dataset.id;
+        calculateRow(rowId);
+        saveScores(rowId);
+    }
+});
+
+// 2. Расчет по правилам WKF (минус min и max)
+function calculateRow(rowId) {
+    const inputs = Array.from(document.querySelectorAll(`.js-score-${rowId}`));
+    const scores = inputs.map(i => parseFloat(i.value) || 0);
+    
+    inputs.forEach(i => i.classList.remove('excluded'));
+
+    // Считаем только если введено 5 оценок
+    const filledScores = scores.filter(s => s > 0);
+    if (filledScores.length === 5) {
+        let minVal = Math.min(...scores);
+        let maxVal = Math.max(...scores);
+        
+        let minSet = false, maxSet = false;
+        inputs.forEach(input => {
+            let val = parseFloat(input.value);
+            if (val === minVal && !minSet) { input.classList.add('excluded'); minSet = true; }
+            else if (val === maxVal && !maxSet) { input.classList.add('excluded'); maxSet = true; }
+        });
+
+        const total = scores.reduce((a, b) => a + b, 0) - minVal - maxVal;
+        document.getElementById(`total-${rowId}`).innerText = total.toFixed(2);
+    }
+}
+
+// 3. Функции навигации
+function toggleCategory(id) {
+    const el = document.getElementById(id);
+    el.style.display = (el.style.display === 'none') ? 'block' : 'none';
+}
+
+function updateRound(cardId, step) {
+    const card = document.getElementById(cardId);
+    const rounds = card.querySelectorAll('.round-group-container');
+    let activeIdx = Array.from(rounds).findIndex(r => r.classList.contains('active'));
+    
+    rounds[activeIdx].classList.remove('active');
+    activeIdx = (activeIdx + step + rounds.length) % rounds.length;
+    rounds[activeIdx].classList.add('active');
+    
+    card.querySelector('.current-round-label').innerText = activeIdx + 1;
+}
+
+function nextRound(id) { updateRound(id, 1); }
+function prevRound(id) { updateRound(id, -1); }
+
+const currentTournamentId = "{{ t_id }}";
+
+// 4. AJAX запросы (замените URL на ваши)
+async function savePerformanceData(p_id) {
+    const row = document.getElementById(`row-${p_id}`);
+    
+    // Собираем данные согласно схеме ScoreUpdate
+    const data = {
+        // Находим селект внутри строки по классу или через специфичный селектор
+        performance_kata: document.querySelector(`.js-kata-${p_id}`)?.value || null,
+        s1: parseFloat(document.getElementById(`s1-${p_id}`).value) || 0.0,
+        s2: parseFloat(document.getElementById(`s2-${p_id}`).value) || 0.0,
+        s3: parseFloat(document.getElementById(`s3-${p_id}`).value) || 0.0,
+        s4: parseFloat(document.getElementById(`s4-${p_id}`).value) || 0.0,
+        s5: parseFloat(document.getElementById(`s5-${p_id}`).value) || 0.0
+    };
+
+    // Визуальная индикация начала сохранения (строка слегка прозрачная)
+    row.style.opacity = '0.7';
+
+    try {
+        const response = await fetch(`/${currentTournamentId}/kata/save/${p_id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) throw new Error('Ошибка сервера');
+
+        // Успех: возвращаем нормальную прозрачность и подсвечиваем зеленым
+        row.style.opacity = '1';
+        row.style.backgroundColor = '#f0fff4';
+        setTimeout(() => row.style.backgroundColor = 'transparent', 600);
+
+    } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        row.style.opacity = '1';
+        row.style.backgroundColor = '#fff5f5'; // Ошибка — красный фон
+    }
+}
+
+// Слушатель для автоматического расчета и сохранения оценок при вводе
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('score-input')) {
+        const p_id = e.target.dataset.id;
+        calculateRow(p_id);      // Ваша функция зачеркивания мин/макс
+        savePerformanceData(p_id); // Сохранение в API
+    }
+});
+
+async function finishRound(btn, t_id, r_id) {
+    if (!confirm("Завершить этот круг? Редактирование станет невозможным.")) return;
+
+    // Блокируем кнопку на время запроса
+    btn.disabled = true;
+    btn.innerText = "⏳ ЗАВЕРШАЕМ...";
+
+    try {
+        // Собираем URL согласно роутеру: /{tournament_id}/kata/round/{round_id}/finish
+        const response = await fetch(`/${t_id}/kata/round/${r_id}/finish`, {
+            method: 'POST', // ОБЯЗАТЕЛЬНО POST, как в вашем API
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            // Если сервер вернул успех, перезагружаем страницу, чтобы применились стили завершения
+            window.location.reload();
+        } else {
+            const errorData = await response.json();
+            alert(`Ошибка: ${errorData.detail || 'Не удалось завершить круг'}`);
+            btn.disabled = false;
+            btn.innerText = "🏁 ЗАВЕРШИТЬ";
+        }
+    } catch (error) {
+        console.error("Ошибка при завершении круга:", error);
+        alert("Произошла ошибка при отправке данных");
+        btn.disabled = false;
+        btn.innerText = "🏁 ЗАВЕРШИТЬ";
+    }
+}
+
+// Инициализация расчета при загрузке страницы
+window.onload = () => {
+    document.querySelectorAll('.total-cell').forEach(cell => {
+        calculateRow(cell.id.replace('total-', ''));
+    });
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Панель Кумите: Сквозная сетка</title>
+    <style>
+        :root { --aka: #dc3545; --shiro: #0d6efd; --bg: #f0f2f5; --green: #28a745; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        
+        /* Стили раундов и категорий */
+        .category-block { margin-bottom: 40px; }
+        .category-title { font-size: 1.5rem; color: #333; border-bottom: 3px solid #333; padding-bottom: 5px; margin-bottom: 20px; }
+        .round-section { margin-bottom: 20px; }
+        .round-label { display: inline-block; background: #6c757d; color: white; padding: 3px 12px; border-radius: 20px; font-size: 0.85rem; margin-bottom: 10px; }
+
+        /* Карточка матча */
+        .matches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .match-card { background: white; border-radius: 8px; border-left: 6px solid #ccc; padding: 15px; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .match-card.active { border-left-color: #ffc107; background: #fffdf5; }
+        .match-card.finished { border-left-color: var(--green); opacity: 0.7; }
+        .match-card.repechage { border-left-color: #fd7e14; } /* Оранжевый для 3 места */
+
+        .match-header { display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .vs-box { display: flex; align-items: center; justify-content: space-between; }
+        .fighter { flex: 1; text-align: center; }
+        .fighter.winner { color: var(--green); font-weight: bold; }
+        .score { font-size: 1.8rem; font-weight: 800; display: block; line-height: 1; margin-top: 5px; }
+        .vs-divider { font-weight: bold; color: #ddd; padding: 0 10px; }
+        
+        /* Кнопки */
+        .btn { border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-score { background: var(--shiro); color: white; width: 100%; margin-top: 12px; }
+        .btn-score:hover { background: #0b5ed7; }
+        .btn-generate { background: #212529; color: white; }
+        .btn-wait { background: #e9ecef; color: #999; width: 100%; margin-top: 12px; cursor: not-allowed; }
+
+        /* Модалка */
+        #modalOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .score-inputs { display: flex; justify-content: space-around; margin: 25px 0; }
+        .score-input-item { text-align: center; }
+        .score-input-item input { width: 70px; height: 60px; font-size: 2rem; text-align: center; border: 2px solid #ddd; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div>
+            <h1 style="margin:0">Управление Кумите</h1>
+            <small class="text-muted">Турнир ID: {{ tournament_id }}</small>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-generate" onclick="generateAll()">⚡ Жеребьевка (Все)</button>
+            <button class="btn" style="background:#eee" onclick="loadAllMatches()">🔄 Обновить</button>
+        </div>
+    </div>
+
+    <div id="tournamentBracket">
+        <!-- Сюда JS загрузит все категории и матчи -->
+    </div>
+</div>
+
+<!-- Модалка ввода результата -->
+<div id="modalOverlay">
+    <div class="modal-content">
+        <h3 id="mTitle">Бой №</h3>
+        <input type="hidden" id="activeMatchId">
+        <div class="score-inputs">
+            <div class="score-input-item">
+                <label class="aka" id="akaName">AKA</label><br>
+                <input type="number" id="akaScore" value="0">
+            </div>
+            <div class="score-input-item">
+                <label class="shiro" id="shiroName">SHIRO</label><br>
+                <input type="number" id="shiroScore" value="0">
+            </div>
+        </div>
+        <div style="display:grid; gap:10px;">
+            <button class="btn" style="background:var(--aka); color:white" onclick="submitResult('aka')">ПОБЕДА AKA</button>
+            <button class="btn" style="background:var(--shiro); color:white" onclick="submitResult('shiro')">ПОБЕДА SHIRO</button>
+            <button class="btn" style="background:#f8f9fa" onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const tId = "{{ tournament_id }}";
+const cId = "{{ category_id }}"; // Если открыта конкретная категория
+
+async function loadAllMatches() {
+    try {
+        // Запрашиваем матчи (твой Шаг 1)
+        const res = await fetch(`/${tId}/kumite/${cId}`);
+        const matches = await res.json();
+        renderBracket(matches);
+    } catch (e) { console.error(e); }
+}
+
+function renderBracket(matches) {
+    const container = document.getElementById('tournamentBracket');
+    container.innerHTML = '<div class="round-section"><div class="matches-grid" id="mainGrid"></div></div>';
+    const grid = document.getElementById('mainGrid');
+
+    // Сортируем ВСЕ матчи по их сквозному номеру
+    matches.sort((a, b) => a.number - b.number).forEach(m => {
+        const isReady = m.aka_id && m.shiro_id;
+        const statusClass = m.is_finished ? 'finished' : (isReady ? 'active' : '');
+        
+        // Определяем название этапа
+        let stage = `Раунд ${m.round_number}`;
+        if (m.is_repechage) stage = "Матч за 3 место";
+
+        grid.innerHTML += `
+            <div class="match-card ${statusClass} ${m.is_repechage ? 'repechage' : ''}">
+                <div class="match-header">
+                    <span>№ ${m.number}</span>
+                    <span class="text-primary small">КАТЕГОРИЯ: ${m.category_id}</span>
+                    <span>${stage}</span>
+                </div>
+                <!-- ... (внутренняя разметка VS-box остается прежней) ... -->
+                <div class="vs-box">
+                    <div class="fighter">
+                        <small class="aka">AKA</small>
+                        <div>${m.aka_id || '---'}</div>
+                        <span class="score">${m.aka_score}</span>
+                    </div>
+                    <div class="vs-divider">VS</div>
+                    <div class="fighter">
+                        <small class="shiro">SHIRO</small>
+                        <div>${m.shiro_id || '---'}</div>
+                        <span class="score">${m.shiro_score}</span>
+                    </div>
+                </div>
+                ${(!m.is_finished && isReady) ? 
+                    `<button class="btn btn-score" onclick="openScore(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">Ввести счет</button>` : 
+                    `<button class="btn btn-wait" disabled>${m.is_finished ? 'Завершен' : 'Ожидание'}</button>`}
+            </div>
+        `;
+    });
+}
+
+// Управление модалкой
+let currentAkaId, currentShiroId;
+function openScore(id, num, aka, shiro) {
+    document.getElementById('activeMatchId').value = id;
+    document.getElementById('mTitle').innerText = "Бой №" + num;
+    document.getElementById('akaName').innerText = "AKA (ID: " + aka + ")";
+    document.getElementById('shiroName').innerText = "SHIRO (ID: " + shiro + ")";
+    currentAkaId = aka; currentShiroId = shiro;
+    document.getElementById('modalOverlay').style.display = 'flex';
+}
+
+function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+async function submitResult(winnerSide) {
+    const mId = document.getElementById('activeMatchId').value;
+    const data = {
+        aka_score: parseInt(document.getElementById('akaScore').value),
+        shiro_score: parseInt(document.getElementById('shiroScore').value),
+        winner_id: winnerSide === 'aka' ? currentAkaId : currentShiroId,
+        is_finished: true
+    };
+
+    await fetch(`/${tId}/kumite/match/${mId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    
+    closeModal();
+    loadAllMatches();
+}
+
+async function generateAll() {
+    if(!confirm("Удалить старые сетки и создать новые со сквозной нумерацией?")) return;
+    await fetch(`/${tId}/kumite/generate-all`, { method: 'POST' });
+    loadAllMatches();
+}
+
+window.onload = loadAllMatches;
+</script>
+</body>
+</html>

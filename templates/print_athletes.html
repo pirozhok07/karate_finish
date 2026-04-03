@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Протоколы категорий - Турнир #{{ t_id }}</title>
+    <style>
+        /* Стили для экрана (превью) */
+        /* body { font-family: "DejaVu Sans", sans-serif; background-color: #f8f9fa; padding: 20px; } */
+        .no-print { text-align: center; margin-bottom: 30px; }
+        .page { 
+            background: white; width: 210mm; min-height: 297mm; 
+            padding: 20mm; margin: 10px auto; border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        /* Стили для печати */
+        @media print {
+            body { background: none; padding: 0; }
+            .no-print { display: none !important; }
+            .page { 
+                margin: 0; border: none; box-shadow: none; width: 100%;
+                page-break-after: always; /* Каждый блок .page — с новой страницы */
+            }
+        }
+
+        /* Таблица и оформление */
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h1 { font-size: 20pt; margin: 0; }
+        .header h2 { font-size: 15pt; margin: 2px; }
+        .header h3 { font-size: 13pt; margin: 0; }
+        /* .header h1 { font-size: 18pt; margin: 0; } */
+        /* .header h2 { font-size: 14pt; margin: 10px 0; border-bottom: 2px solid #000; padding-bottom: 5px; } */
+        /* .header h2 { font-size: 14pt; margin: 10px 0; padding-bottom: 5px; } */
+        
+        .header-meta { 
+            display: flex; justify-content: space-between; 
+            font-weight: bold; font-size: 13pt; 
+            border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 10px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 11pt; }
+        th { background: #f2f2f2 !important; }
+        thead th {border-bottom: 2pt solid #000 !important;}
+        
+        .footer {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.footer-row {
+    display: grid;
+    grid-template-columns: 190px 1fr 240px; /* Должность | Линия | ФИО */
+    align-items: end;
+    gap: 10px;
+}
+
+.footer-row .line { text-align: center; border-bottom: 1px solid black; height: 1.1em; }
+.footer-row .person { text-align: right; font-weight: bold; }
+.footer-row .label { text-align: left; font-weight: bold; }
+
+@media print {
+    .footer-row {
+        page-break-inside: avoid;
+    }
+}
+
+
+        .header-info {
+            display: flex;
+            justify-content: space-between; /* Расталкивает элементы по краям */
+            align-items: center;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 12pt;
+            /* border-bottom: 1px solid #000; Опционально: тонкая линия под городом/датой */
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px;">
+            🖨️ Отправить на принтер
+        </button>
+        <p><small>Совет: В настройках печати браузера выключите "Поля" и "Верхние/нижние колонтитулы"</small></p>
+    </div>
+
+    <div id="print-area">
+        {% for cat_name, members in grouped_athletes.items() %}
+        <div class="page">
+            <div class="header">
+                <h1>{{ t_name }}</h1>
+                <h2>{{ t_desc }}</h2>
+                <h3>
+                    вид спорта - "киокусинкай", <br>
+                    дисциплина - "кёкусин-ката"
+                </h3>
+                <!-- Новая строка с городом и датой -->
+                <div class="header-meta">
+                    <span>г. Москва</span>
+                    <span>{{ t_date }}</span>
+                </div>
+                <h2>Протокол регистрации</h2>
+                <div style="margin: 5px;">{{ cat_name}}</div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 5%">№</th>
+                        <th style="width: 40%">Фамилия Имя</th>
+                        <th style="width: 25%">Клуб / Тренер</th>
+                        <th style="width: 15%">Дата рожд.</th>
+                        <th style="width: 15%">Результат</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for athlete in members %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ athlete.last_name }} {{ athlete.first_name }}</td>
+                        <td>{{ athlete.club or '-' }}</td>
+                        <td>{{ athlete.birth_date.strftime('%d.%m.%Y') }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="footer">
+                <div class="footer-row">
+                    <span class="label">Главный судья:</span>
+                    <span class="line"></span>
+                    <span class="person">{{ t_judge or '_____________' }}</span>
+                </div>
+                <div class="footer-row">
+                    <span class="label">Главный секретарь:</span>
+                    <span class="line"></span>
+                    <span class="person">{{ t_secretary or '_____________' }}</span>
+                </div>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+
+</body>
+</html>

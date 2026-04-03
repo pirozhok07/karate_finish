@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Протокол результатов - {{ t_name }}</title>
+    <style>
+        /* Базовые стили для отображения в браузере */
+        /* body { font-family: "DejaVu Sans", Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 20px; } */
+        .no-print { text-align: center; margin-bottom: 20px; }
+        
+        /* Стили страницы А4 */
+        .page { 
+            width: 210mm; min-height: 297mm; padding: 15mm; 
+            margin: 10px auto; background: white; border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+
+        /* Настройки печати */
+        @media print {
+            body { background: none; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .page { 
+                margin: 0; border: none; width: 100%; 
+                page-break-after: always; /* РАЗРЫВ СТРАНИЦЫ ПОСЛЕ КАТЕГОРИИ */
+            }
+        }
+
+        /* Шапка: Город --- Дата */
+        
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h1 { font-size: 20pt; margin: 0; }
+        .header h2 { font-size: 15pt; margin: 2px; }
+        .header h3 { font-size: 13pt; margin: 0; }
+        /* .header h1 { font-size: 18pt; margin: 0; } */
+        /* .header h2 { font-size: 14pt; margin: 10px 0; border-bottom: 2px solid #000; padding-bottom: 5px; } */
+        /* .header h2 { font-size: 14pt; margin: 10px 0; padding-bottom: 5px; } */
+        
+        .header-meta { 
+            display: flex; justify-content: space-between; 
+            font-weight: bold; font-size: 13pt; 
+            border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 10px;
+        }
+        .category-box { 
+            background: #eeeeee !important; padding: 8px; 
+            font-size: 13pt; border: 1px solid #000; margin-bottom: 15px; 
+            font-weight: bold; text-align: center;
+            -webkit-print-color-adjust: exact;
+        }
+
+        /* Таблица результатов */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt; }
+        th { background: #f2f2f2 !important; }
+        thead th {border-bottom: 2pt solid #000 !important;}
+        .col-score { width: 35px; }
+
+        /* Подписи в столбик (GRID) */
+        .footer { margin-top: 30px; width: 100%; }
+        .footer-row { 
+            display: grid; 
+            grid-template-columns: 180px 1fr 210px; 
+            gap: 10px; align-items: end; margin-bottom: 15px; 
+        }
+        .footer-row .label { font-weight: bold; font-size: 11pt; }
+        .footer-row .line { border-bottom: 1px solid #000; height: 1.2em; }
+        .footer-row .person { font-size: 11pt; padding-left: 10px; font-weight: bold; text-align: right }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">
+            🖨️ Печать итоговых протоколов
+        </button>
+    </div>
+    <div id="print-area">
+        {% for category in categories %}
+        <div class="page">
+            <div class="header">
+                <h1>{{ t_name }}</h1>
+                <h2>{{ t_desc }}</h2>
+                <h3>
+                    вид спорта - "киокусинкай", <br>
+                    дисциплина - "кёкусин-ката"
+                </h3>
+                <!-- Новая строка с городом и датой -->
+                <div class="header-meta">
+                    <span>г. Москва</span>
+                    <span>{{ t_date }}</span>
+                </div>
+                <div style="font-weight: bold; margin: 5px;">{{ category.name }}</div>
+            </div>
+
+            {% for round in category.rounds %}
+            
+                <div style="font-weight: bold;">Раунд {{ round.round_number }}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width: 30px;">№</th>
+                            <th rowspan="2">Фамилия Имя (клуб)</th>
+                            <th rowspan="2">Ката</th>
+                            <th colspan="5">Оценки судей</th>
+                            <th rowspan="2" style="width: 60px;">Итого</th>
+                            {% if round.round_number == 3 %}
+                                <th rowspan="2" style="width: 50px;">Место</th>
+                            {% endif %}
+                        </tr>
+                        <tr>
+                            <th class="col-score">С1</th>
+                            <th class="col-score">С2</th>
+                            <th class="col-score">С3</th>
+                            <th class="col-score">С4</th>
+                            <th class="col-score">С5</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for score in round.scores %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td style="text-align: left;">{{ score.athlete.last_name }} {{ score.athlete.first_name }} ({{ score.athlete.club }})</td>
+                            <td>-</td>
+                            <td>{{ "%.1f"|format(score.s1) if score.s1 > 0 else '' }}</td>
+                            <td>{{ "%.1f"|format(score.s2) if score.s2 > 0 else '' }}</td>
+                            <td>{{ "%.1f"|format(score.s3) if score.s3 > 0 else '' }}</td>
+                            <td>{{ "%.1f"|format(score.s4) if score.s4 > 0 else '' }}</td>
+                            <td>{{ "%.1f"|format(score.s5) if score.s5 > 0 else '' }}</td>
+                            <td style="font-weight: bold;">{{ "%.2f"|format(score.total_score) }}</td>
+                            
+                            {% if round.round_number == 3 %}
+                                <td>{{ score.place if score.place <=3 else '' }}</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+            {% endfor %}
+
+            <div class="footer">
+                <div class="footer-row">
+                    <span class="label">Главный судья:</span>
+                    <span class="line"></span>
+                    <span class="person">{{ t_judge or '_________________' }}</span>
+                </div>
+                <div class="footer-row">
+                    <span class="label">Главный секретарь:</span>
+                    <span class="line"></span>
+                    <span class="person">{{ t_secretary or '_________________' }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</body>
+</html>

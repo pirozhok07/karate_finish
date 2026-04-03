@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Турнирная панель: Весь поток</title>
+    <style>
+        :root { --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; --green: #28a745; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        /* Шапка */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        /* Сетка матчей */
+        .matches-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        
+        .m-card { background: white; border-radius: 12px; border-left: 8px solid #cbd5e0; padding: 15px; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .m-card.active { border-left-color: #f6e05e; background: #fffdf5; transform: scale(1.02); z-index: 10; }
+        .m-card.finished { border-left-color: var(--green); opacity: 0.8; }
+        .m-card.repechage { border-left-color: #ed8936; }
+
+        .m-badge { position: absolute; top: -10px; right: 15px; background: #4a5568; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
+        .m-meta { font-size: 0.7rem; color: #a0aec0; text-transform: uppercase; margin-bottom: 10px; font-weight: bold; }
+        
+        .vs-container { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; text-align: center; }
+        .participant { flex: 1; }
+        .score { font-size: 2.2rem; font-weight: 900; line-height: 1; margin: 5px 0; }
+        .vs-label { font-weight: bold; color: #e2e8f0; padding: 0 10px; }
+
+        .aka { color: var(--aka); }
+        .shiro { color: var(--shiro); }
+
+        .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; transition: 0.2s; font-size: 0.9rem; }
+        .btn-primary { background: var(--shiro); color: white; }
+        .btn-primary:hover { background: #2b6cb0; }
+        .btn-disabled { background: #edf2f7; color: #a0aec0; cursor: not-allowed; }
+
+        /* Нативная модалка */
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
+        .modal { background: white; padding: 30px; border-radius: 15px; width: 380px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .score-box { display: flex; justify-content: space-around; margin: 20px 0; }
+        .score-box input { width: 70px; height: 70px; font-size: 2.5rem; text-align: center; border: 2px solid #e2e8f0; border-radius: 10px; }
+        
+        :root { --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; --green: #28a745; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        .matches-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        
+        /* Стилизация состояний матчей */
+        .m-card { background: white; border-radius: 12px; border-left: 8px solid #cbd5e0; padding: 15px; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        
+        /* Прошедшие матчи */
+        .m-card.finished { border-left-color: var(--green); opacity: 0.7; background: #f8fafc; filter: grayscale(0.3); }
+        
+        /* Текущий/Активный матч */
+        .m-card.active { border-left-color: #f6e05e; background: #fffdf5; transform: scale(1.02); z-index: 10; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-width: 0 0 0 12px; }
+        
+        /* Будущие матчи (без пары) */
+        .m-card.waiting { border-left-color: #e2e8f0; opacity: 0.6; }
+
+        .m-badge { position: absolute; top: -10px; right: 15px; background: #4a5568; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
+        .m-meta { font-size: 0.7rem; color: #a0aec0; text-transform: uppercase; margin-bottom: 10px; font-weight: bold; }
+        
+        .vs-container { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; text-align: center; }
+        .participant { flex: 1; padding: 10px; border-radius: 8px; transition: 0.3s; }
+        
+        /* Подсветка победителя */
+        .participant.winner { background: rgba(40, 167, 69, 0.1); position: relative; outline: 2px solid var(--green); }
+        .participant.winner::after { content: "🏆"; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 1.2rem; }
+        .participant.loser { opacity: 0.5; }
+
+        .score { font-size: 2.2rem; font-weight: 900; line-height: 1; margin: 5px 0; }
+        .vs-label { font-weight: bold; color: #e2e8f0; padding: 0 10px; }
+
+        .aka { color: var(--aka); }
+        .shiro { color: var(--shiro); }
+
+        .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; transition: 0.2s; font-size: 0.9rem; }
+        .btn-primary { background: var(--shiro); color: white; }
+        .btn-disabled { background: #edf2f7; color: #a0aec0; cursor: not-allowed; }
+
+        #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
+        .modal { background: white; padding: 30px; border-radius: 15px; width: 380px; }
+        .score-box { display: flex; justify-content: space-around; margin: 20px 0; }
+        .score-box input { width: 70px; height: 70px; font-size: 2.5rem; text-align: center; border: 2px solid #e2e8f0; border-radius: 10px; }
+    /* Эффект для победителя */
+        .participant.winner {
+            background: rgba(40, 167, 69, 0.1); /* Легкий зеленый фон */
+            outline: 2px solid #ffc107; /* Золотая рамка */
+            border-radius: 10px;
+            position: relative;
+            transform: scale(1.05);
+            z-index: 1;
+        }
+
+        /* Иконка короны над победителем */
+        .participant.winner::after {
+            content: "👑";
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.4rem;
+        }
+
+        /* Эффект для проигравшего */
+        .participant.loser {
+            opacity: 0.4;
+            filter: grayscale(0.8);
+        }
+
+        /* Дополнительная анимация для завершенных карточек */
+        .m-card.finished {
+            border-left-color: var(--green);
+            background: #fdfdfd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <div>
+            <h1 style="margin:0; font-size: 1.5rem;">КУМИТЕ: ПОТОК БОЕВ</h1>
+            <div id="loadingStatus" style="font-size: 0.8rem; color: #a0aec0;">Обновление...</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn" style="background:var(--green); color:white; width: auto;" onclick="fetchMatches()">🔄 Обновить поток</button>
+        </div>
+    </div>
+
+    <div class="matches-list" id="matchesContainer">
+        <!-- Сюда JS выведет ленту -->
+    </div>
+</div>
+
+<!-- Модальное окно -->
+<div id="overlay">
+    <div class="modal">
+        <h3 id="modalTitle" style="margin-top:0">Бой №</h3>
+        <input type="hidden" id="matchIdField">
+        <div class="score-box">
+            <div>
+                <label class="aka">AKA (ID: <span id="akaLabel"></span>)</label><br>
+                <input type="number" id="akaInput" value="0" min="0">
+            </div>
+            <div>
+                <label class="shiro">SHIRO (ID: <span id="shiroLabel"></span>)</label><br>
+                <input type="number" id="shiroInput" value="0" min="0">
+            </div>
+        </div>
+        <div style="display:grid; gap:10px;">
+            <button class="btn" style="background:var(--aka); color:white" onclick="sendResult('aka')">ПОБЕДА AKA</button>
+            <button class="btn" style="background:var(--shiro); color:white" onclick="sendResult('shiro')">ПОБЕДА SHIRO</button>
+            <button class="btn" style="background:#eee; color:#666" onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const tId = "{{ tournament_id }}";
+
+    async function fetchMatches() {
+       const status = document.getElementById('loadingStatus');
+       status.innerText = "Загрузка всего потока...";
+       
+       try {
+           // Запрашиваем специальный эндпоинт для всего турнира
+           const response = await fetch(`/${tId}/kumite/stream/all`);
+           if (!response.ok) throw new Error("Ошибка сервера");
+           
+           const data = await response.json();
+           console.log("Загружено матчей:", data);
+           
+           renderMatches(data);
+           status.innerText = "Обновлено: " + new Date().toLocaleTimeString();
+       } catch (error) {
+           console.error("Ошибка:", error);
+           status.innerText = "Ошибка загрузки!";
+       }
+    }
+
+
+    function renderMatches(matches) {
+    const container = document.getElementById('matchesContainer');
+    container.innerHTML = '';
+
+    matches.sort((a, b) => a.number - b.number).forEach(m => {
+        const isReady = m.aka_id && m.shiro_id;
+        const isFinished = m.is_finished;
+        
+        // Класс для всей карточки
+        const cardClass = isFinished ? 'finished' : (isReady ? 'active' : '');
+        
+        // ОПРЕДЕЛЕНИЕ ПОБЕДИТЕЛЯ (по полю winner_id)
+        let akaClass = "";
+        let shiroClass = "";
+
+        if (isFinished && m.winner_id) {
+            if (m.winner_id === m.aka_id) {
+                akaClass = "winner";
+                shiroClass = "loser";
+            } else if (m.winner_id === m.shiro_id) {
+                shiroClass = "winner";
+                akaClass = "loser";
+            }
+        }
+
+        container.innerHTML += `
+            <div class="m-card ${cardClass} ${m.is_repechage ? 'repechage' : ''}">
+                <div class="m-badge">№ ${m.number}</div>
+                <div class="m-meta">КАТ: ${m.category.name}</div>
+                
+                <div class="vs-container">
+                    <!-- Участник AKA -->
+                    <div class="participant ${akaClass}">
+                        <div class="aka" style="font-size:0.7rem; font-weight:900;">AKA</div>
+                        <div style="font-weight:bold">${m.aka_id || '---'}</div>
+                        <div class="score aka">${m.aka_score}</div>
+                    </div>
+                    
+                    <div class="vs-label">VS</div>
+                    
+                    <!-- Участник SHIRO -->
+                    <div class="participant ${shiroClass}">
+                        <div class="shiro" style="font-size:0.7rem; font-weight:900;">SHIRO</div>
+                        <div style="font-weight:bold">${m.shiro_id || '---'}</div>
+                        <div class="score shiro">${m.shiro_score}</div>
+                    </div>
+                </div>
+
+                ${(!isFinished && isReady) ? 
+                    `<button class="btn btn-primary" onclick="openModal(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">ВВЕСТИ РЕЗУЛЬТАТ</button>` : 
+                    `<button class="btn btn-disabled" disabled>${isFinished ? 'РЕЗУЛЬТАТ ЗАФИКСИРОВАН' : 'ОЖИДАНИЕ ПАРЫ'}</button>`}
+            </div>
+        `;
+    });
+}
+
+    // Логика управления результатами
+    let tempAkaId, tempShiroId;
+    function openModal(id, num, aka, shiro) {
+        document.getElementById('matchIdField').value = id;
+        document.getElementById('modalTitle').innerText = "Бой №" + num;
+        document.getElementById('akaLabel').innerText = aka;
+        document.getElementById('shiroLabel').innerText = shiro;
+        tempAkaId = aka; tempShiroId = shiro;
+        document.getElementById('overlay').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('overlay').style.display = 'none'; }
+
+    async function sendResult(winner) {
+        const mId = document.getElementById('matchIdField').value;
+        const payload = {
+            aka_score: parseInt(document.getElementById('akaInput').value),
+            shiro_score: parseInt(document.getElementById('shiroInput').value),
+            winner_id: winner === 'aka' ? tempAkaId : tempShiroId,
+            is_finished: true
+        };
+
+        const res = await fetch(`/${tId}/kumite/match/${mId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            closeModal();
+            fetchMatches();
+        }
+    }
+
+    async function generateAll() {
+        if(!confirm("Внимание! Это удалит текущие сетки и создаст новые. Продолжить?")) return;
+        await fetch(`/${tournamentId}/kumite/generate-all`, { method: 'POST' });
+        fetchMatches();
+    }
+
+    // Автозапуск
+    window.onload = fetchMatches;
+</script>
+</body>
+</html>

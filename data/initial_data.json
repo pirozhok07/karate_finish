@@ -1,0 +1,119 @@
+{
+    "katas": [
+        {"name": "Тайкёку соно ити", "min_duration": 30.0, "max_duration": 50.0, "is_advanced": false},
+        {"name": "Тайкёку соно ни", "min_duration": 30.0, "max_duration": 50.0, "is_advanced": false},
+        {"name": "Тайкёку соно сан", "min_duration": 30.0, "max_duration": 50.0, "is_advanced": false},
+        {"name": "Пинан соно ити", "min_duration": 40.0, "max_duration": 65.0, "is_advanced": false},
+        {"name": "Пинан соно ни", "min_duration": 40.0, "max_duration": 65.0, "is_advanced": false},
+        {"name": "Пинан соно сан", "min_duration": 40.0, "max_duration": 70.0, "is_advanced": false},
+        {"name": "Пинан соно ён", "min_duration": 45.0, "max_duration": 75.0, "is_advanced": false},
+        {"name": "Пинан соно го", "min_duration": 45.0, "max_duration": 75.0, "is_advanced": false},
+        {"name": "Сантин но ката", "min_duration": 50.0, "max_duration": 80.0, "is_advanced": false},
+        {"name": "Гэкисай Дай", "min_duration": 50.0, "max_duration": 80.0, "is_advanced": false},
+        {"name": "Гэкисай Сё", "min_duration": 50.0, "max_duration": 80.0, "is_advanced": false},
+        {"name": "Тэнсё", "min_duration": 50.0, "max_duration": 80.0, "is_advanced": false},
+        {"name": "Янцу", "min_duration": 50.0, "max_duration": 85.0, "is_advanced": false},
+        {"name": "Цуки но ката", "min_duration": 55.0, "max_duration": 90.0, "is_advanced": false},
+        {"name": "Сайха", "min_duration": 60.0, "max_duration": 100.0, "is_advanced": false},
+        {"name": "Канку Дай", "min_duration": 90.0, "max_duration": 150.0, "is_advanced": true},
+        {"name": "Сэйентин", "min_duration": 90.0, "max_duration": 160.0, "is_advanced": true},
+        {"name": "Сусихо", "min_duration": 110.0, "max_duration": 180.0, "is_advanced": true},
+        {"name": "Гарю", "min_duration": 90.0, "max_duration": 160.0, "is_advanced": true},
+        {"name": "Сэйпай", "min_duration": 110.0, "max_duration": 180.0, "is_advanced": true}
+      ],
+    "category_templates": [
+      {
+        "name": "Мальчики 8-9 лет",
+        "discipline": "kata",
+        "min_age": 8, "max_age": 9, "gender": "male",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Девочки 8-9 лет",
+        "discipline": "kata",
+        "min_age": 8, "max_age": 9, "gender": "female",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Мальчики 10-11 лет",
+        "discipline": "kata",
+        "min_age": 10, "max_age": 11, "gender": "male",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Девочки 10-11 лет",
+        "discipline": "kata",
+        "min_age": 10, "max_age": 11, "gender": "female",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Юноши 12-13 лет",
+        "discipline": "kata",
+        "min_age": 12, "max_age": 13, "gender": "male",
+        "allowed_kata_names": ["Тайкёку соно сан", "Пинан соно ити", "Пинан соно ни", "Пинан соно сан","Сантин но ката", "Гэкисай Дай", "Гэкисай Сё"]
+      },
+      {
+        "name": "Девушки 12-13 лет",
+        "discipline": "kata",
+        "min_age": 12, "max_age": 13, "gender": "female",
+        "allowed_kata_names": ["Тайкёку соно сан", "Пинан соно ити", "Пинан соно ни", "Пинан соно сан","Сантин но ката", "Гэкисай Дай", "Гэкисай Сё"]
+      },
+      {
+        "name": "Юноши 14-15 лет",
+        "discipline": "kata",
+        "min_age": 14, "max_age": 15, "gender": "male",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Тэнсё", "Гэкисай Сё"],
+        "allowed_kata_names_second": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+      {
+        "name": "Девушки 14-15 лет",
+        "discipline": "kata",
+        "min_age": 14, "max_age": 15, "gender": "female",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Тэнсё", "Гэкисай Сё"],
+        "allowed_kata_names_second": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+      {
+        "name": "Юниоры 16-17 лет",
+        "discipline": "kata",
+        "min_age": 16, "max_age": 17, "gender": "male",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Тэнсё", "Гэкисай Сё"],
+        "allowed_kata_names_second": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+      {
+        "name": "Юниорки 16-17 лет",
+        "discipline": "kata",
+        "min_age": 16, "max_age": 17, "gender": "female",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Тэнсё", "Гэкисай Сё"],
+        "allowed_kata_names_second": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+      {
+        "name": "Мужчины",
+        "discipline": "kata",
+        "min_age": 18, "max_age": 99, "gender": "male",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха"],
+        "allowed_kata_names_second": ["Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё","Тэнсё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+      {
+        "name": "Женщины",
+        "discipline": "kata",
+        "min_age": 18, "max_age": 99, "gender": "female",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха"],
+        "allowed_kata_names_second": ["Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё","Тэнсё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      },
+
+      {
+        "name": "Мальчики и девочки 8-9 лет",
+        "discipline": "kata",
+        "min_age": 8, "max_age": 9, "gender": "unisex",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Мальчики и девочки 10-11 лет",
+        "discipline": "kata",
+        "min_age": 10, "max_age": 11, "gender": "unisex",
+        "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      }
+    ]
+  }
+  
+   
