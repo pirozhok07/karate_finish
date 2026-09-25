@@ -295,6 +295,7 @@
                         data-rank_sport="{{ a.rank_sport or '' }}"
                         data-club="{{ a.club or '' }}"
                         data-coach="{{ a.coach or '' }}"
+                        data-category="{{ a.draft_assignments or '' }}"
                         data-is_present="{{ 'true' if a.is_present else 'false' }}">
                         ✎
                     </button>
@@ -339,6 +340,15 @@
             </div>
 
             <div class="input-group"><label>Тренер</label><input type="text" name="coach" id="edit-coach"></div>
+            <div class="input-group">
+                <label>Категории</label>
+                <div> 
+                    {% for cat in all_categories %} 
+                    <label>
+                        <input type="checkbox" name="categories_ids" value="{{ cat.id }}" id="edit-club">
+                    </label> 
+                </div>
+            </div>
 
             <div class="input-group checkbox-group">
                 <input type="checkbox" name="is_present" id="edit-is_present">
@@ -411,7 +421,7 @@
         const fields = [
             'id', 'last_name', 'first_name', 'middle_name', 
             'birth_date', 'gender', 'weight_preview', 'weight_real', 'rank_kyu', 
-            'rank_sport', 'club', 'coach'
+            'rank_sport', 'club', 'coach', 'category'
         ];
 
         fields.forEach(field => {

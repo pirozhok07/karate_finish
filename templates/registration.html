@@ -270,13 +270,14 @@
                 timer = setTimeout(async () => {
                     const athleteId = input.dataset.athleteId;
                     const weight = parseFloat(input.value);
-                if(isNaN(weight)) return;
-                await fetch(`/${tId}/athletes/${athleteId}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({athlete_id: athleteId, weight_real:weight})
-                });
-            }, 600);
+                    if(isNaN(weight)) return;
+                    await fetch(`/${tId}/athletes/${athleteId}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({athlete_id: athleteId, weight_real:weight})
+                    });
+                    location.reload()
+                }, 600);
             });
         });
     })

@@ -148,7 +148,10 @@ async def view_tournament(
 
     # 2. Загружаем данные из БД
     # Получаем ВСЕХ атлетов (для фильтрации и списка клубов)
-    ath_result = await t_db.execute(select(Athlete))
+    ath_result = await t_db.execute(
+        select(Athlete)
+        .options(selectinload(Athlete.draft_assignments).selectinload(DraftAssignment.category))
+    )
     all_athletes = list(ath_result.scalars().all())
 
     # Получаем ВСЕ команды с их участниками
@@ -198,7 +201,7 @@ async def view_tournament(
         "teams": teams, # ОБЯЗАТЕЛЬНО передаем в шаблон
         "t_id": tournament_id,
         "clubs": unique_clubs,
-        "age_categories": ["6-7", "8-9", "10-11", "12-13", "14-15", "16-17", "18+"]
+        "age_categories": ["8-9", "10-11", "12-13", "14-15", "16-17", "18+"]
     })
 
 @router.get("/view/{tournament_id}/categories", response_class=HTMLResponse)
