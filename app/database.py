@@ -79,6 +79,7 @@ async def create_tournament_db(slug: str, main_db: AsyncSession, template_ids: l
                 new_cat = Category(
                     name=tmpl.name,
                     discipline=tmpl.discipline,
+                    # tatami_number=1,
                     min_age=tmpl.min_age,
                     max_age=tmpl.max_age,
                     gender=tmpl.gender,

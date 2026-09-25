@@ -301,7 +301,7 @@
                 <div class="btn-info"><span>🏆</span> Протоколы КАТА</div>
                 <span class="btn-status">ПАНЕЛЬ</span>
             </a>
-            <a href="/view/{{ tournament.id }}/kumite/stream" class="action-link" style="background: var(--dark); color: white;">
+            <a href="/view/{{ tournament.id }}/kumite" class="action-link" style="background: var(--dark); color: white;">
                 <div class="btn-info"><span>🥋</span> Поток КУМИТЕ</div>
                 <span class="btn-status status-live">LIVE</span>
             </a>
@@ -310,16 +310,24 @@
         <!-- Группа 3: Итоги -->
         <div class="action-group">
             <div class="group-label">3. Отчеты</div>
-            <a href="/view/{{ tournament.id }}/export-athletes-excel" class="action-link">
-                <div class="btn-info"><span>🖨️</span> спортсмены сеток</div>
-                <span class="btn-status">PDF</span>
-            </a>
-            <a href="/view/{{ tournament.id }}/export-results-excel" class="action-link">
-                <div class="btn-info"><span>📗</span> оценки Excel</div>
+            <a href="/view/{{ tournament.id }}/export-main-excel" class="action-link">
+                <div class="btn-info"><span>📗</span> Справка</div>
                 <span class="btn-status">XLSX</span>
             </a>
-            <a href="/view/{{ tournament.id }}/export-main-excel" class="action-link">
-                <div class="btn-info"><span>📗</span> Итоговый Excel</div>
+            <a href="/view/{{ tournament.id }}/kumite-print" class="action-link">
+                <div class="btn-info"><span>📗</span> Ход(кумите)</div>
+                <span class="btn-status">XLSX</span>
+            </a>
+            <a href="/view/{{ tournament.id }}/export-scores-excel" class="action-link">
+                <div class="btn-info"><span>📗</span> Ход(ката)</div>
+                <span class="btn-status">XLSX</span>
+            </a>
+            <a href="/view/{{ tournament.id }}/export-athletes-excel" class="action-link">
+                <div class="btn-info"><span>📗</span> Протоколы </div>
+                <span class="btn-status">XLSX</span>
+            </a>
+            <a href="/view/{{ tournament.id }}/export-results-excel" class="action-link">
+                <div class="btn-info"><span>📗</span> Результаты</div>
                 <span class="btn-status">XLSX</span>
             </a>
         </div>

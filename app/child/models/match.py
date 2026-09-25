@@ -14,7 +14,8 @@ class Match(TournamentBase):
     
     
     # Логика боя
-    number: Mapped[int] = mapped_column(Integer)  # Номер боя в сетке
+    number: Mapped[int] = mapped_column(Integer)  # Номер боя 
+    number_for_tatami: Mapped[int] = mapped_column(Integer, nullable=True)  # Номер боя в сетке
     round_number: Mapped[int] = mapped_column(Integer, default=1)  # 1/8, 1/4, финал и т.д.
     
     # Результаты
@@ -30,5 +31,21 @@ class Match(TournamentBase):
     next_match_position: Mapped[int | None] = mapped_column(Integer)
     # Связи
     category: Mapped["Category"] = relationship(back_populates="matches")
-    aka: Mapped["Athlete"] = relationship("Athlete", foreign_keys=[aka_id])
-    shiro: Mapped["Athlete"] = relationship("Athlete", foreign_keys=[shiro_id])
+    aka: Mapped["Athlete"] = relationship("Athlete", foreign_keys=[aka_id], lazy="selectin")
+    shiro: Mapped["Athlete"] = relationship("Athlete", foreign_keys=[shiro_id], lazy="selectin")
+
+    def to_dict(self):
+        return{
+            "id": self.id,
+            "category_id": self.category_id,
+            "aka_id": self.aka_id,
+            "shiro_id": self.shiro_id,
+            "aka": self.aka.to_dict() if self.aka else None,
+            "shiro": self.shiro.to_dict() if self.shiro else None,
+            "number_for_tatami": self.number_for_tatami,
+            "number": self.number,
+            "round_number": self.round_number,
+            "winner_id": self.winner_id,
+            "is_finished": self.is_finished,
+            "is_repechage": self.is_repechage,
+        }

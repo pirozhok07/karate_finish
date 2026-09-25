@@ -15,11 +15,11 @@ class Team(TournamentBase):
     is_present: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Связь со спортсменами (3 человека)
-    members: Mapped[list["Athlete"]] = relationship(secondary="team_members")
+    members: Mapped[list["Athlete"]] = relationship(secondary="team_members", primaryjoin="Team.id == team_members.c.team_id", secondaryjoin="Athlete.id == team_members.c.athlete_id", back_populates="team")
     # Ссылка на оценки (теперь Score может ссылаться либо на Athlete, либо на Team)
     scores: Mapped[list["Score"]] = relationship(back_populates="team")
 # ДОБАВЬТЕ ЭТУ СТРОКУ (имя должно строго совпадать с back_populates в DraftAssignment)
-    draft_assignments: Mapped[list["DraftAssignment"]] = relationship(back_populates="team")
+    draft_assignments: Mapped[list["DraftAssignment"]] = relationship(back_populates="team", lazy="selectin")
     
 # Таблица связи для состава команды
 team_members = Table(

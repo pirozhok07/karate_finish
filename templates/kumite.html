@@ -94,9 +94,12 @@ const cId = "{{ category_id }}"; // Если открыта конкретная
 async function loadAllMatches() {
     try {
         // Запрашиваем матчи (твой Шаг 1)
+        console.error(tId);
+        console.error(cId);
         const res = await fetch(`/${tId}/kumite/${cId}`);
         const matches = await res.json();
         renderBracket(matches);
+        console.error(matches);
     } catch (e) { console.error(e); }
 }
 
@@ -104,6 +107,11 @@ function renderBracket(matches) {
     const container = document.getElementById('tournamentBracket');
     container.innerHTML = '<div class="round-section"><div class="matches-grid" id="mainGrid"></div></div>';
     const grid = document.getElementById('mainGrid');
+
+    if (!matches) {
+        grid.innerHTML +=`<div> матчей нет </div>`
+        return
+    }
 
     // Сортируем ВСЕ матчи по их сквозному номеру
     matches.sort((a, b) => a.number - b.number).forEach(m => {

@@ -10,7 +10,8 @@ from app.child.models.score import Score
 from app.child.models.match import Match
 from app.child.models.team import Team
 from app.child.models.winner import Winner
-from app.child.services.redirect import promote_to_next_round, run_draft_assignment_logic
+from app.child.services.logic import find_category_id
+from app.child.services.redirect import promote_to_next_round
 from app.child.services.service import get_category_winners
 from app.tournament_main.model import CategoryTemplate, Tournament
 from app.tournament_main.schema import TournamentCreate
@@ -20,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import create_tournament_db, get_db, get_t_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, asc, desc, func, extract
+from sqlalchemy import delete, select, asc, desc, func, extract
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
@@ -60,6 +61,12 @@ async def index_page(
     result = await t_db.execute(
         select(func.count(Athlete.id)).where(Athlete.is_present == True)
     )
+    present_count = result.scalar() or 0
+
+    # Считаем количество записей в таблице Athlete для конкретного турнира
+    result = await t_db.execute(
+        select(func.count(Athlete.id))
+    )
     total_athletes = result.scalar() or 0
 
     # Считаем количество записей в таблице Category для конкретного турнира
@@ -71,6 +78,7 @@ async def index_page(
         "request": request, 
         "tournament": tournament,
         "athletes_count": total_athletes,  # Общее кол-во участников
+        "present_count": present_count, 
         "clubs_count": total_clubs,        # Кол-во уникальных клубов
         "completion_rate": 50,
         "categories": categories
@@ -200,11 +208,11 @@ async def view_categories(
     t_db: AsyncSession = Depends(get_t_db),
     main_db: AsyncSession = Depends(get_db),
 ):
-    # 1. Проверка и авто-распределение
-    check_draft = await t_db.execute(select(DraftAssignment).limit(1))
-    if not check_draft.scalar_one_or_none():
-        await run_draft_assignment_logic(tournament_id, main_db, t_db)
-        await t_db.commit() 
+    # # 1. Проверка и авто-распределение
+    # check_draft = await t_db.execute(select(DraftAssignment).limit(1))
+    # if not check_draft.scalar_one_or_none():
+    #     await run_draft_assignment_logic(tournament_id, main_db, t_db)
+    #     await t_db.commit() 
 
     # 2. Загружаем категории с полной подгрузкой атлетов и команд
     result = await t_db.execute(
@@ -217,9 +225,8 @@ async def view_categories(
     )
     # .unique() важен при использовании нескольких selectinload
     categories = result.scalars().all()
+    categories_with_discipline = defaultdict(list)
 
-    print(categories[0].draft_assignments)
-    print(categories[1].draft_assignments)
     # 3. СОРТИРОВКА В PYTHON (решает проблему с None в шаблоне)
     for cat in categories:
         cat.draft_assignments.sort(
@@ -229,6 +236,21 @@ async def view_categories(
             ),
             reverse=True
         )
+        # подсчет человек явившихся
+        count_present = 0
+        for it in cat.draft_assignments:
+            person = it.athlete if it.athlete else it.team
+            if person.is_present:
+                count_present +=1
+        data = {
+            "category": cat, 
+            "count_present":count_present
+        }
+        if cat.gender == "unisex":
+            discipline = "group"
+        else:
+            discipline = cat.discipline
+        categories_with_discipline[discipline].append(data)
 
     # 4. Нераспределенные
     unassigned_res = await t_db.execute(
@@ -237,9 +259,10 @@ async def view_categories(
         .options(selectinload(DraftAssignment.athlete))
     )
     unassigned = unassigned_res.scalars().all()
+    print(categories_with_discipline)
     return templates.TemplateResponse("categories.html", {
         "request": request,
-        "categories": categories,
+        "categories": categories_with_discipline,
         "unassigned": unassigned,
         "t_id": tournament_id
     })
@@ -251,15 +274,23 @@ async def registration_page(
     t_db: AsyncSession = Depends(get_t_db)
 ):
     # Сортируем по фамилии для удобства поиска в списке
-    result = await t_db.execute(select(Athlete).order_by(Athlete.last_name))
+    result = await t_db.execute(
+        select(Athlete)
+        .options(
+            selectinload(Athlete.draft_assignments).selectinload(DraftAssignment.category),
+            selectinload(Athlete.team).selectinload(Team.draft_assignments).selectinload(DraftAssignment.category)
+        )
+    )
     athletes = result.scalars().all()
     result = await t_db.execute(select(Team).options(selectinload(Team.members)))
     teams = result.scalars().all()
     
+    unique_clubs = sorted(list(set(a.club for a in athletes if a.club)))
     return templates.TemplateResponse("registration.html", {
         "request": request,
         "athletes": athletes,
         "teams": teams,
+        "clubs": unique_clubs,
         "t_id": tournament_id
     })
 
@@ -294,19 +325,88 @@ async def kata_page(
         "t_id": tournament_id
     })
 
-@router.post("/view/{tournament_id}/assign/calculate-web")
-async def calculate_draft_web(
-    tournament_id: int,
-    main_db: AsyncSession = Depends(get_db),
+@router.get("/view/{tournament_id}/kumite", response_class=HTMLResponse)
+async def kumite_page(
+    request: Request, 
+    tournament_id: int, 
     t_db: AsyncSession = Depends(get_t_db)
 ):
-    await run_draft_assignment_logic(tournament_id, main_db, t_db)
-    
-    # Редирект обратно на страницу категорий
-    return RedirectResponse(
-        url=f"/view/{tournament_id}/categories", 
-        status_code=303
+    result = await t_db.execute(
+        select(Category)
+        .where(Category.discipline == "kumite") 
     )
+    categories = result.scalars().all()
+
+    data = defaultdict(list)
+    for category in categories:
+        data[category.tatami_number].append(category.to_dict())
+
+    print(data)
+    return templates.TemplateResponse("kumite_nav.html",{
+        "request": request,
+        "categories": data,
+        "tournament_id": tournament_id
+    })
+
+
+
+@router.post("/view/{tournament_id}/range-athletes")
+async def range_athletes(tournament_id: int, t_db: AsyncSession = Depends(get_t_db)):
+# 1. Очистка старого черновика
+    await t_db.execute(delete(DraftAssignment))
+
+    categories = (await t_db.execute(select(Category))).scalars().all()
+    
+    # Загружаем всех атлетов и все команды с участниками
+    athletes = (await t_db.execute(select(Athlete))).scalars().all()
+    teams_res = await t_db.execute(select(Team).options(selectinload(Team.members)))
+    teams = teams_res.scalars().all()
+
+    # 1. Распределяем ЛИЧНИКОВ (только в гендерные категории)
+    for a in athletes:
+        # ВАЖНО: Проверяем, заявлялся ли он в личку (флаг из импорта)
+        # Если флага нет в модели, можно убрать это условие или добавить поле в БД
+        if a.is_kata:
+            # Твоя функция поиска
+            cat_id = find_category_id(a, categories)
+
+            t_db.add(DraftAssignment(
+                athlete_id=a.id, 
+                category_id=cat_id,
+                reason="Авто-распределение (личка)"
+            ))
+        if a.is_kumite:
+            # Твоя функция поиска
+            cat_id = find_category_id(a, categories, True)
+            
+            t_db.add(DraftAssignment(
+                athlete_id=a.id, 
+                category_id=cat_id,
+                reason="Авто-распределение (кумите)"
+            ))
+
+    # 2. Распределяем КОМАНДЫ
+    for team in teams:
+        # Команды ищем только в категориях unisex (или командных ката)
+        team_cats = [c for c in categories if c.gender == "unisex"]
+        
+        for cat in team_cats:
+            if not team.members:
+                continue
+                
+            # Проверка возраста для ВСЕХ участников группы по году рождения
+            # (Все должны попадать в диапазон категории)
+            ages = [m.age for m in team.members]
+            
+            if all(cat.min_age <= age <= cat.max_age for age in ages):
+                t_db.add(DraftAssignment(
+                    team_id=team.id,
+                    category_id=cat.id,
+                    reason=f"Авто-распределение (группа)"
+                ))
+
+    await t_db.commit()
+    return RedirectResponse(url=f"/view/{tournament_id}/categories", status_code=303)
 
 @router.post("/view/{tournament_id}/round/{round_id}/finish-web")
 async def finish_round_web(tournament_id: int, round_id: int, t_db: AsyncSession = Depends(get_t_db)):
@@ -323,7 +423,7 @@ async def finish_round_route(tournament_id: int, round_id: int, t_db: AsyncSessi
     return {"status": "success", "message": "Круг успешно завершен."}
 
 
-@router.get("/view/{tournament_id}/kumite/stream", response_class=HTMLResponse)
+@router.get("/view/{tournament_id}/kumite/all", response_class=HTMLResponse)
 async def get_stream_page(
     request: Request, 
     tournament_id: int
@@ -341,6 +441,27 @@ async def get_stream_page(
         }
     )
 
+@router.get("/view/{tournament_id}/kumite/all/{tatami_number}", response_class=HTMLResponse)
+async def get_kumite_page(
+    request: Request, 
+    tournament_id: int,
+    tatami_number: int, 
+    t_db: AsyncSession = Depends(get_t_db)
+):
+    
+    category_name = "ОБЩИЙ ПОТОК ТУРНИРА (Все категории)"
+    
+
+    # 2. Рендерим шаблон (убедитесь, что файл называется kumite_full.html или kumite.html)
+    return templates.TemplateResponse(
+        "kumite_all.html", 
+        {
+            "request": request, 
+            "tournament_id": tournament_id,
+            "tatami_number": tatami_number,
+            "category_name": category_name
+        }
+    )
 
 @router.get("/view/{tournament_id}/kumite/{category_id}", response_class=HTMLResponse)
 async def get_kumite_page(
@@ -350,20 +471,17 @@ async def get_kumite_page(
     t_db: AsyncSession = Depends(get_t_db)
 ):
     # 1. Определяем название страницы
-    if category_id == 0:
-        category_name = "ОБЩИЙ ПОТОК ТУРНИРА (Все категории)"
-    else:
         # Ищем конкретную категорию
-        result = await t_db.execute(select(Category).where(Category.id == category_id))
-        category = result.scalar_one_or_none()
-        
-        if not category:
-            return HTMLResponse(content="Категория не найдена", status_code=404)
-        category_name = category.name
+    result = await t_db.execute(select(Category).where(Category.id == category_id, Category.discipline == 'kumite'))
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        return HTMLResponse(content="Категория не найдена", status_code=404)
+    category_name = category.name
 
     # 2. Рендерим шаблон (убедитесь, что файл называется kumite_full.html или kumite.html)
     return templates.TemplateResponse(
-        "kumite.html", 
+        "kumite_all.html", 
         {
             "request": request, 
             "tournament_id": tournament_id,
@@ -392,7 +510,7 @@ async def view_category_bracket(
     bracket_data = {}
     for m in matches:
         if m.round_number not in bracket_data: bracket_data[m.round_number] = []
-        bracket_data[m.round_number].append(m)
+        bracket_data[m.round_number].append(m.to_dict())
     
     max_r = max(bracket_data.keys()) if bracket_data else 1
 

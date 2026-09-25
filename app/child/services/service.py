@@ -1,12 +1,15 @@
+from collections import defaultdict
 from datetime import date
 import math
 from operator import and_, or_
 import random
+from typing import List
 from app.child.models.athlete import Athlete
 from app.child.models.category import Category
 from app.child.models.draft import DraftAssignment
 from app.child.models.match import Match
-from sqlalchemy import select, delete
+from app.child.schemas.match import TatamiNumberCreate
+from sqlalchemy import select, delete, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +17,41 @@ import random
 import math
 
 import math
+
+async def rangeCategoriesForTatami(data: List[TatamiNumberCreate], t_db: AsyncSession):
+    for category in data:
+        await t_db.execute(
+            update(Category)
+            .where(Category.id == category.category_id)
+            .values(tatami_number=category.tatami_id)
+        )
+    await t_db.commit()
+
+
+async def updateMatchesNumbers(t_db: AsyncSession):
+    result = await t_db.execute(
+        select(Category)
+        .where(Category.discipline == 'kumite')
+    )
+    categories = result.scalars().all()
+    tatami = defaultdict(list)
+    for category in categories:
+        tatami[category.tatami_number].append(category.id)
+
+    for tatami_id, category_ids in tatami.items():
+        tatami_number = tatami_id*100
+        result = await t_db.execute(
+            select(Match)
+            .join(Match.category)
+            .options(selectinload(Match.category))
+            .where(Category.id.in_(category_ids))
+            .order_by(Match.number)
+        )
+        matches = result.scalars().all()
+        for match in matches:
+            tatami_number += 1
+            match.number_for_tatami = tatami_number
+        await t_db.commit()
 
 async def generate_kumite_bracket(category_id: int, t_db: AsyncSession):
     result = await t_db.execute(select(DraftAssignment).where(DraftAssignment.category_id == category_id))
@@ -138,7 +176,7 @@ async def generate_next_round(category_id: int, current_round: int, t_db: AsyncS
     await t_db.commit()
 
 
-async def get_path_to_final(winner_id: int, category_id: int, t_db: AsyncSession):
+# async def get_path_to_final(winner_id: int, category_id: int, t_db: AsyncSession):
     """Возвращает список ID атлетов, проигравших финалисту (winner_id)."""
     result = await t_db.execute(
         select(Match)
@@ -156,7 +194,7 @@ async def get_path_to_final(winner_id: int, category_id: int, t_db: AsyncSession
             losers.append(loser_id)
     return losers
 
-async def generate_repechage(category_id: int, finalist_id: int, side_name: str, t_db: AsyncSession):
+# async def generate_repechage(category_id: int, finalist_id: int, side_name: str, t_db: AsyncSession):
     """Создает лестницу утешительных боев для одной стороны (пул А или Б)."""
     losers = await get_path_to_final(finalist_id, category_id, t_db)
     
@@ -182,7 +220,7 @@ async def generate_repechage(category_id: int, finalist_id: int, side_name: str,
 
     await t_db.commit()
 
-async def create_finals_and_third_place(category_id: int, semi_final_matches: list[Match], t_db: AsyncSession):
+# async def create_finals_and_third_place(category_id: int, semi_final_matches: list[Match], t_db: AsyncSession):
     """
     Принимает два матча полуфинала, находит победителей и проигравших,
     и создает финальный и малый финальный (за 3-е место) бои.
@@ -404,19 +442,39 @@ async def generate_all_kumite_horizontal(tournament_id: int, t_db: AsyncSession)
     await t_db.execute(delete(Match))
     
     # 2. Сбор категорий и атлетов
-    cat_res = await t_db.execute(select(Category).where(Category.discipline == "kumite"))
-    categories = cat_res.scalars().all()
+    # 2. Сбор категорий и атлетов
+    result = await t_db.execute(
+            select(DraftAssignment).join(DraftAssignment.athlete).join(DraftAssignment.category)
+            .options(selectinload(DraftAssignment.athlete),selectinload(DraftAssignment.category))
+            .where(DraftAssignment.category_id != None)
+            .where(Category.discipline == "kumite")
+            .where(Athlete.is_present == 1)
+        )
+    draft_persons = result.scalars().all()
+
+    dict_categories = defaultdict(list)
+    for d in draft_persons:
+        dict_categories[d.category_id].append(d.athlete_id)
     
     global_num = 1
     category_data = []
 
-    for cat in categories:
-        assign_res = await t_db.execute(
-            select(DraftAssignment).where(DraftAssignment.category_id == cat.id)
-        )
-        athlete_ids = [a.athlete_id for a in assign_res.scalars().all()]
+    for cat_id, athlete_ids in dict_categories.items():
         n = len(athlete_ids)
         if n < 2: continue
+        if  n == 3:
+            from itertools import combinations
+            pairs = list(combinations(athlete_ids, 2))
+            category_data.append({
+                "type": "round_circle",
+                "cat_id": cat_id,
+                "pairs": pairs,
+                "rounds": [3, 2, 1],
+                "grid_size": 3,
+                "total_rounds": 3,
+                "tree": {1: {}, 2: {}, 3: {}}
+            })
+            continue
 
         grid_size = 2**math.ceil(math.log2(n))
         total_rounds = int(math.log2(grid_size))
@@ -437,28 +495,43 @@ async def generate_all_kumite_horizontal(tournament_id: int, t_db: AsyncSession)
             slots[order[i]] = athlete_ids[i]
 
         category_data.append({
-            "cat_id": cat.id,
+            "type": "bracket" if n > 2 else "para",
+            "cat_id": cat_id,
             "slots": slots,
             "grid_size": grid_size,
             "total_rounds": total_rounds,
             "tree": {r: {} for r in range(1, total_rounds + 1)} # Используем dict для выборочных матчей
         })
 
+
     # 3. ГЕНЕРАЦИЯ МАТЧЕЙ СЛОЯМИ (начиная с финалов и вниз к R1)
     # Сначала создаем структуру всех возможных матчей со 2-го раунда до финала
     for data in category_data:
-        for r in range(2, data["total_rounds"] + 1):
-            num_matches = data["grid_size"] // (2**r)
-            for i in range(num_matches):
+        if data["type"] == "round_circle":
+            for round_num, (aka, shiro) in zip(data["rounds"], data["pairs"]):
                 m = Match(
                     category_id=data["cat_id"],
-                    round_number=r,
+                    round_number=round_num,
+                    aka_id=aka,
+                    shiro_id=shiro,
                     number=0, # Временно
                     is_finished=False
                 )
                 t_db.add(m)
-                data["tree"][r][i] = m
-        await t_db.flush()
+        else:
+            for r in range(2, data["total_rounds"] + 1):
+                num_matches = data["grid_size"] // (2**r)
+                for i in range(num_matches):
+                    m = Match(
+                        category_id=data["cat_id"],
+                        # round_number=max_total_rounds - r + 1,
+                        round_number=data["total_rounds"] - r + 1,
+                        number=0, # Временно
+                        is_finished=False
+                    )
+                    t_db.add(m)
+                    data["tree"][r][i] = m
+            await t_db.flush()
 
     # 4. СВЯЗЫВАНИЕ И ЗАПОЛНЕНИЕ УЧАСТНИКОВ
     for data in category_data:
@@ -471,54 +544,61 @@ async def generate_all_kumite_horizontal(tournament_id: int, t_db: AsyncSession)
 
         # РАССАДКА И СОЗДАНИЕ МАТЧЕЙ R1 ТОЛЬКО ПРИ НАЛИЧИИ ПАРЫ
         for i in range(data["grid_size"] // 2):
-            aka = data["slots"][i*2]
-            shiro = data["slots"][i*2 + 1]
-            
-            # Находим матч R2, в который ведет этот путь
-            m_r2 = data["tree"][2][i // 2] if data["total_rounds"] >= 2 else None
-            pos_in_r2 = 1 if i % 2 == 0 else 2
+            if "slots" in data:
+                aka = data["slots"][i*2]
+                shiro = data["slots"][i*2 + 1]
+                
+                # Находим матч R2, в который ведет этот путь
+                m_r2 = data["tree"][2][i // 2] if data["total_rounds"] >= 2 else None
+                pos_in_r2 = 1 if i % 2 == 0 else 2
 
-            if aka and shiro:
-                # Есть пара -> Создаем реальный матч в Раунде 1
-                m_r1 = Match(
-                    category_id=data["cat_id"],
-                    round_number=1,
-                    aka_id=aka,
-                    shiro_id=shiro,
-                    number=global_num,
-                    is_finished=False
-                )
-                if m_r2:
-                    m_r1.next_match_id = m_r2.id
-                    m_r1.next_match_position = pos_in_r2
-                t_db.add(m_r1)
-                global_num += 1
-            else:
-                # Пары нет (один из них None) -> Спортсмен сразу в Раунд 2
-                winner_id = aka or shiro
-                if m_r2:
-                    if pos_in_r2 == 1: m_r2.aka_id = winner_id
-                    else: m_r2.shiro_id = winner_id
-                # Если раунд всего один (финал), обрабатывается отдельно в логике турнира
-
-        # 5. НУМЕРАЦИЯ ОСТАЛЬНЫХ МАТЧЕЙ (R2+)
-        for r in range(2, data["total_rounds"] + 1):
-            for i in sorted(data["tree"][r].keys()):
-                data["tree"][r][i].number = global_num
-                global_num += 1
+                if aka and shiro:
+                    # Есть пара -> Создаем реальный матч в Раунде 1
+                    m_r1 = Match(
+                        category_id=data["cat_id"],
+                        round_number=data["total_rounds"],
+                        aka_id=aka,
+                        shiro_id=shiro,
+                        number=global_num,
+                        is_finished=False
+                    )
+                    if m_r2:
+                        m_r1.next_match_id = m_r2.id
+                        m_r1.next_match_position = pos_in_r2
+                    t_db.add(m_r1)
+                    global_num += 1
+                else:
+                    # Пары нет (один из них None) -> Спортсмен сразу в Раунд 2
+                    winner_id = aka or shiro
+                    if m_r2:
+                        if pos_in_r2 == 1: m_r2.aka_id = winner_id
+                        else: m_r2.shiro_id = winner_id
+                    # Если раунд всего один (финал), обрабатывается отдельно в логике турнира
 
         # 6. БОЙ ЗА 3 МЕСТО
-        third_place = Match(
-            category_id=data["cat_id"],
-            round_number=data["total_rounds"],
-            number=global_num,
-            is_repechage=True
-        )
-        t_db.add(third_place)
-        global_num += 1
+        if (data["type"] == "bracket"):
+            third_place = Match(
+                category_id=data["cat_id"],
+                round_number=1,
+                number=global_num,
+                is_repechage=True
+            )
+            t_db.add(third_place)
+
+    result = await t_db.execute(select(Match).where(Match.round_number != 1).order_by(Match.round_number.desc(), Match.category_id))
+    matches = result.scalars().all()
+    for i, matche in enumerate(matches, start=1):
+        matche.number = i
+    glob = len(matches) + 1
+
+    result = await t_db.execute(select(Match).where(Match.round_number == 1).order_by(Match.is_repechage.desc(),Match.category_id))
+    matches = result.scalars().all()
+    for i, matche in enumerate(matches, start=glob):
+        matche.number = i
 
     await t_db.commit()
     return {"status": "success", "total_matches": global_num - 1}
+
 
 async def fill_tournament_summary(t_db):
     # 1. Загружаем только подтвержденных (явившихся) участников
@@ -604,3 +684,49 @@ async def get_formatted_winners_by_category(tournament_id: int, t_db: AsyncSessi
         formatted_results.append(line)
 
     return formatted_results
+
+# async def range_athletes(tournament_id: int, t_db: AsyncSession):
+        # all_categories = cat_res.scalars().unique().all()
+        # cat_res = await t_db.execute(select(Category))
+#  # 2. Привязка ЛИЧНИКОВ к категориям
+#         for a in all_athletes:
+#             if a.is_kata:
+#                 # Твоя функция поиска
+#                 cat_id = find_category_id(a, all_categories)
+#                 print("is_kata")
+#                 print(a)
+#                 print(cat_id)
+                
+#                 t_db.add(DraftAssignment(
+#                     athlete_id=a.id, 
+#                     category_id=cat_id,
+#                     reason="Авто-распределение (личка)"
+#                 ))
+#             if a.is_kumite:
+#                 print("")
+#                 print(a)
+#                 print(cat_id)
+#                 # Твоя функция поиска
+#                 cat_id = find_category_id(a, all_categories, True)
+                
+#                 t_db.add(DraftAssignment(
+#                     athlete_id=a.id, 
+#                     category_id=cat_id,
+#                     reason="Авто-распределение (кумите)"
+#                 ))
+
+#         # Поиск категории и создание черновика
+#                 # --- ИСПРАВЛЕННАЯ ЛОГИКА ПОИСКА КАТЕГОРИИ ДЛЯ КОМАНДЫ ---
+#                 # Создаем "виртуального" участника с полом unisex для поиска командной категории
+#                 virtual_participant = Athlete(
+#                     gender="unisex", 
+#                     birth_date=first_member.birth_date
+#                 )
+                
+#                 cat_id = find_category_id(virtual_participant, all_categories)
+                
+#                 t_db.add(DraftAssignment(
+#                     team_id=new_team.id,
+#                     category_id=cat_id,
+#                     reason=f"Авто-команда ({len(members_objs)} чел.)"
+#                 ))

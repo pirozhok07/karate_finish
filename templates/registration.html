@@ -97,6 +97,21 @@
         
         .counter-badge { font-size: 0.8rem; color: var(--gray); margin-bottom: 10px; display: block; }
         .counter-badge b { color: var(--dark); }
+
+        .input-w-real{
+            width: 45px;
+            border-radius: 5px; 
+        }
+        .input-w-real::-webkit-outer-spin-button,
+        .input-w-real::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .overweight {
+            background-color: rgb(172, 88, 88);
+            
+        }
+        
     </style>
 </head>
 <body>
@@ -165,9 +180,8 @@
                         <span class="member-{{ m.id }}" 
                               style="color: {% if m.is_present %}var(--green){% else %}var(--aka){% endif %}; 
                                      font-weight: {% if m.is_present %}bold{% else %}normal{% endif %}; transition: 0.3s;">
-                            {{ m.last_name }} {{ m.first_name[0] }}.
+                            {{ m.last_name }} {{ m.first_name }} {{ m.middle_name }}.<br>
                         </span>
-                        {% if not loop.last %}, {% endif %}
                     {% endfor %}
                 </td>
                 <td style="text-align: right;">
@@ -187,15 +201,18 @@
         <thead>
             <tr>
                 <th width="80" onclick="sortTable(0)">СТАТУС</th>
-                <th onclick="sortTable(1)" data-type="text">ФАМИЛИЯ ИМЯ</th>
+                <th onclick="sortTable(1)" data-type="text">ФИО</th>
                 <th onclick="sortTable(2)" data-type="text">КЛУБ</th>
-                <th onclick="sortTable(3)" data-type="number">ГОД</th>
+                <th onclick="sortTable(3)" data-type="number">ВОЗРАСТ</th>
+                <th onclick="sortTable(4)" data-type="number">ВЕС</th>
+                <th onclick="sortTable(5)" data-type="number">ВЕС(ФАКТ)</th>
+                <th data-type="number">КАТЕГОРИИ</th>
                 <th>РАЗРЯД</th>
             </tr>
         </thead>
         <tbody id="tableBody">
             {% for a in athletes %}
-            <tr class="{% if a.is_present %}present{% endif %}" id="row-{{ a.id }}" data-present="{{ a.is_present }}">
+            <tr class="{% if a.is_present %}present{% endif %}" id="row-{{ a.id }}" data-present="{% if a.is_present %}true{% else %}false{% endif %}">
                 <td>
                     <label class="switch">
                         <input type="checkbox" {% if a.is_present %}checked{% endif %}
@@ -204,10 +221,37 @@
                     </label>
                 </td>
                 <td data-val="{{ a.last_name }} {{ a.first_name }}">
-                    <b>{{ a.last_name }}</b><br><small>{{ a.first_name }}</small>
+                    <b>{{ a.last_name }}</b><br><small>{{ a.first_name }} {{ a.middle_name }}</small>
                 </td>
                 <td data-val="{{ a.club or '—' }}">{{ a.club or '—' }}</td>
-                <td data-val="{{ a.birth_date.year }}">{{ a.birth_date.year }}</td>
+                <td data-val="{{ a.age }}">{{ a.age }}</td>
+                <td data-val="{{ a.weight_preview }}">{{ a.weight_preview or ''}}</td>
+                <td> 
+                    {% if a.is_kumite %}
+                        <input 
+                        type="number" 
+                        class="input-w-real" 
+                        step="0.01" 
+                        min="0"
+                        data-athlete-id="{{a.id}}"
+                        data-weight-declared="{{ a.weight_preview }}"
+                        value="{{a.weight_real or ''}}"> 
+                    {% endif %}
+                </td>
+                <td>
+                    {% for cat in a.draft_assignments %}{{ cat.discipline }}
+                        {% if cat.category.discipline == 'kumite' and a.weight_real %}
+                            <span class="{% if cat.category.min_weight > a.weight_real or cat.category.max_weight < a.weight_real %}overweight{% endif %}" style="font-size: 0.7rem; color: var(--gray)" >{% if cat.category.discipline == "kumite" %}👊{% elif cat.category.discipline == "kata" %}🥋{% endif %} {{ cat.category.name or 'нет категории'}}</span><br>
+                        {% else %}
+                            <span style="font-size: 0.7rem; color: var(--gray)" >{% if cat.category.discipline == "kumite" %}👊{% elif cat.category.discipline == "kata" %}🥋{% endif %} {{ cat.category.name or 'нет категории'}}</span><br>
+                        {% endif %}
+                    {% endfor %}
+                    {% for team in a.team %}
+                        {% for catTeam in team.draft_assignments %}
+                        <span style="font-size: 0.7rem; color: var(--gray)">👥 {{ catTeam.category.name or ''}}</span><br>
+                        {% endfor %}
+                    {% endfor %}
+                </td>
                 <td><span style="font-size: 0.7rem; color: var(--gray)">{{ a.rank_sport or '' }}</span></td>
             </tr>
             {% endfor %}
@@ -216,8 +260,28 @@
 </div>
 
 <script>
-    let currentFilter = 'all';
+    const tId = "{{ t_id }}";
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.input-w-real').forEach(input => {
+            let timer;
+        
+            input.addEventListener('input', () => {
+                timer = setTimeout(async () => {
+                    const athleteId = input.dataset.athleteId;
+                    const weight = parseFloat(input.value);
+                if(isNaN(weight)) return;
+                await fetch(`/${tId}/athletes/${athleteId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({athlete_id: athleteId, weight_real:weight})
+                });
+            }, 600);
+            });
+        });
+    })
 
+    let currentFilter = 'all';
     async function togglePresence(tId, athleteId, checkbox) {
     const isPresent = checkbox.checked;
     const athleteRow = document.getElementById(`row-${athleteId}`);
@@ -234,7 +298,7 @@
             console.log("Данные от сервера:", data); // Проверяем структуру
             // 1. Обновляем строку атлета в основной таблице
             athleteRow.classList.toggle('present', isPresent);
-            athleteRow.setAttribute('data-present', isPresent ? "True" : "False");
+            athleteRow.setAttribute('data-present', isPresent ? "true" : "false");
 
             // 2. ОБНОВЛЯЕМ КОМАНДЫ на основе данных от сервера (data.team_statuses)
             if (data.team_statuses) {
@@ -281,6 +345,7 @@
         alert("Не удалось сохранить изменения");
     }
 }
+
 
 
     // 2. Умная фильтрация и поиск
@@ -373,29 +438,30 @@
     applyAllFilters();
 
     function switchView(type) {
-    const personalTable = document.getElementById('athletesTable');
-    const teamsContainer = document.getElementById('teamsTableContainer');
-    const btnPersonal = document.getElementById('tab-btn-personal');
-    const btnTeams = document.getElementById('tab-btn-teams');
+        const personalTable = document.getElementById('athletesTable');
+        const teamsContainer = document.getElementById('teamsTableContainer');
+        const btnPersonal = document.getElementById('tab-btn-personal');
+        const btnTeams = document.getElementById('tab-btn-teams');
 
-    if (type === 'teams') {
-        // Скрываем личников, показываем команды
-        personalTable.style.setProperty('display', 'none', 'important');
-        teamsContainer.style.setProperty('display', 'block', 'important');
-        
-        // Стили кнопок
-        btnTeams.className = 'btn btn-dark';
-        btnPersonal.className = 'btn btn-outline';
-    } else {
-        // Показываем личников, скрываем команды
-        personalTable.style.setProperty('display', 'table', 'important');
-        teamsContainer.style.setProperty('display', 'none', 'important');
-        
-        // Стили кнопок
-        btnPersonal.className = 'btn btn-dark';
-        btnTeams.className = 'btn btn-outline';
-    }
-    }
+        if (type === 'teams') {
+            // Скрываем личников, показываем команды
+            personalTable.style.setProperty('display', 'none', 'important');
+            teamsContainer.style.setProperty('display', 'block', 'important');
+            
+            // Стили кнопок
+            btnTeams.className = 'btn btn-dark';
+            btnPersonal.className = 'btn btn-outline';
+        } else {
+            // Показываем личников, скрываем команды
+            personalTable.style.setProperty('display', 'table', 'important');
+            teamsContainer.style.setProperty('display', 'none', 'important');
+            
+            // Стили кнопок
+            btnPersonal.className = 'btn btn-dark';
+            btnTeams.className = 'btn btn-outline';
+        }
+    }  
+
 </script>
 
 </body>

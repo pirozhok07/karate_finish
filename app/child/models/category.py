@@ -8,6 +8,7 @@ class Category(TournamentBase):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False) # Напр. "Мальчики 8-9 лет"
     discipline: Mapped[str] = mapped_column(String(20), default="kata") # "kata"/"kumite"
+    tatami_number: Mapped[int] = mapped_column(Integer, default=1)
     
     min_age: Mapped[int] = mapped_column(nullable=False)
     max_age: Mapped[int] = mapped_column(nullable=False)
@@ -31,7 +32,12 @@ class Category(TournamentBase):
 
     def __repr__(self) -> str:
         return f"<Category {self.name}>"
-
+    
+    def to_dict(self):
+        return{
+            "id": self.id,
+            "name": self.name,
+        }
 
 
 class Kata(TournamentBase):
@@ -68,3 +74,4 @@ class CategoryKata(TournamentBase):
     # Связи для удобного доступа
     kata: Mapped["Kata"] = relationship(back_populates="category_associations")
     category: Mapped["Category"] = relationship(back_populates="kata_associations")
+

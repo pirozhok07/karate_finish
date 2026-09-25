@@ -1,5 +1,7 @@
 from collections import defaultdict
 from datetime import date
+
+from fastapi.responses import RedirectResponse
 from app.child.models.round import Round
 from app.child.models.score import Score
 from app.child.models.team import Team
@@ -37,64 +39,17 @@ from app.child.services.logic import find_category_id, get_athlete_age, get_prom
 #     await t_db.commit()
 #     return len(athletes)
 
-async def run_draft_assignment_logic(tournament_id: int, main_db: AsyncSession, t_db: AsyncSession):
-# 1. Очистка старого черновика
-    await t_db.execute(delete(DraftAssignment))
 
-    tournament = await main_db.get(Tournament, tournament_id)
-    categories = (await t_db.execute(select(Category))).scalars().all()
-    
-    # Загружаем всех атлетов и все команды с участниками
-    athletes = (await t_db.execute(select(Athlete))).scalars().all()
-    teams_res = await t_db.execute(select(Team).options(selectinload(Team.members)))
-    teams = teams_res.scalars().all()
-
-    # 1. Распределяем ЛИЧНИКОВ (только в гендерные категории)
-    for athlete in athletes:
-        # ВАЖНО: Проверяем, заявлялся ли он в личку (флаг из импорта)
-        # Если флага нет в модели, можно убрать это условие или добавить поле в БД
-        if getattr(athlete, 'is_personal', True): 
-            personal_cats = [c for c in categories if c.gender in ["male", "female"]]
-            category_ids = await find_eligible_categories(athlete, personal_cats, tournament.event_date)
-            
-            for cat_id in category_ids:
-                t_db.add(DraftAssignment(
-                    athlete_id=athlete.id, 
-                    category_id=cat_id,
-                    reason="Личное распределение (авто)"
-                ))
-
-    # 2. Распределяем КОМАНДЫ
-    for team in teams:
-        # Команды ищем только в категориях unisex (или командных ката)
-        team_cats = [c for c in categories if c.gender == "unisex"]
-        
-        for cat in team_cats:
-            if not team.members:
-                continue
-                
-            # Проверка возраста для ВСЕХ участников группы по году рождения
-            # (Все должны попадать в диапазон категории)
-            ages = [tournament.event_date.year - m.birth_date.year for m in team.members]
-            
-            if all(cat.min_age <= age <= cat.max_age for age in ages):
-                t_db.add(DraftAssignment(
-                    team_id=team.id,
-                    category_id=cat.id,
-                    reason=f"Командное распределение ({cat.name})"
-                ))
-
-    await t_db.commit()
 
 async def find_eligible_categories(
     athlete: Athlete, 
     categories: list[Category], 
     event_date: date
-) -> list[int]:
+) -> dict[int, str]:
     """Возвращает список ID ЛИЧНЫХ категорий (только male/female), подходящих атлету."""
     # Возраст по году рождения
     age = event_date.year - athlete.birth_date.year
-    eligible_ids = []
+    eligible_ids = {}
     
     for cat in categories:
          # 1. Проверка пола и возраста (базовый фильтр)
@@ -102,7 +57,7 @@ async def find_eligible_categories(
             
             # 2. Специфика КАТА (обычно только возраст и пол)
             if cat.discipline == "kata":
-                eligible_ids.append(cat.id)
+                eligible_ids[cat.id] = "kata"
                 
             # 3. Специфика КУМИТЕ (обязательно проверяем вес)
             elif cat.discipline == "kumite":
@@ -112,7 +67,7 @@ async def find_eligible_categories(
                     min_w = cat.min_weight or 0
                     max_w = cat.max_weight or 999
                     if min_w <= athlete.weight <= max_w:
-                        eligible_ids.append(cat.id)
+                        eligible_ids[cat.id] = "kumite"
                         
     return eligible_ids
 

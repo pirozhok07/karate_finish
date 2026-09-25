@@ -2,27 +2,39 @@ from app.child.schemas.category import CategorySimple
 from pydantic import BaseModel
 from typing import Optional
 
+class AthleteResponse(BaseModel):
+    id: int
+    last_name: str
+    first_name: str
+    club: str
+
 class MatchResultUpdate(BaseModel):
-    aka_score: int
-    shiro_score: int
     winner_id: int
     is_finished: bool = True
+
+class TatamiNumberCreate(BaseModel):
+    category_id: Optional[int] = None
+    tatami_id: int
+
+class TatamiNumberCreateResponce(BaseModel):
+    category_id: int
+    name: str
+    count: int
 
 class MatchResponse(BaseModel):
     id: int
     category: Optional[CategorySimple] = None 
     aka_id: Optional[int] = None
     shiro_id: Optional[int] = None
-    aka_score: int =0
-    shiro_score: int =0
     winner_id: Optional[int] = None
     is_finished: bool
     round_number: int
     number: int 
+    aka: Optional[AthleteResponse] = None
+    shiro: Optional[AthleteResponse] = None
 
     class Config:
         from_attributes = True
-
 
 
 class WinnerResponse(BaseModel):

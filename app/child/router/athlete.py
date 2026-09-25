@@ -69,9 +69,12 @@ async def update_athlete(
     athlete = await t_db.get(Athlete, athlete_id)
     if not athlete:
         raise HTTPException(status_code=404, detail="Athlete not found")
-
+    print(athlete_data)
+    update_date = athlete_data.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in update_date.items():
+        if hasattr(athlete, key):
+            setattr(athlete, key, value)
     # 2. Обновляем статус
-    athlete.is_present = athlete_data.is_present 
     
     # 3. Синхронизация команд (ваша логика)
     updated_teams = await sync_team_presence(t_db, athlete_id) 
@@ -132,28 +135,10 @@ async def upload_athletes_from_excel(
     try:
         content = await file.read()
         all_athletes, teams_dict = parse_athletes_excel(content)
-        # ЗАГРУЖАЕМ ВСЕ КАТЕГОРИИ (один раз, чтобы не дергать базу в цикле)
-        cat_res = await t_db.execute(select(Category))
-        all_categories = cat_res.scalars().unique().all()
-        today = date.today()
-        
-
         # 1. Сохраняем атлетов
         for a in all_athletes:
             t_db.add(a)
         await t_db.flush() 
-
-         # 2. Привязка ЛИЧНИКОВ к категориям
-        for a in all_athletes:
-            if getattr(a, '_is_personal', False):
-                # Твоя функция поиска
-                cat_id = find_category_id(a, all_categories, today)
-                
-                t_db.add(DraftAssignment(
-                    athlete_id=a.id, 
-                    category_id=cat_id,
-                    reason="Авто-распределение (личка)"
-                ))
 
         # 3. Создание и привязка КОМАНД
         for t_info in teams_dict.values():
@@ -178,22 +163,6 @@ async def upload_athletes_from_excel(
                     new_team.members.append(m)
                 
                 await t_db.flush()
-
-                # Поиск категории и создание черновика
-                # --- ИСПРАВЛЕННАЯ ЛОГИКА ПОИСКА КАТЕГОРИИ ДЛЯ КОМАНДЫ ---
-                # Создаем "виртуального" участника с полом unisex для поиска командной категории
-                virtual_participant = Athlete(
-                    gender="unisex", 
-                    birth_date=first_member.birth_date
-                )
-                
-                cat_id = find_category_id(virtual_participant, all_categories, today)
-                
-                t_db.add(DraftAssignment(
-                    team_id=new_team.id,
-                    category_id=cat_id,
-                    reason=f"Авто-команда ({len(members_objs)} чел.)"
-                ))
         
         await t_db.commit()
         return RedirectResponse(url=f"/view/{tournament_id}/athlete", status_code=303)

@@ -9,8 +9,14 @@
         .container { max-width: 1200px; margin: 0 auto; }
         
         /* Шапка */
-        .top-bar { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        
+        .top-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: var(--dark); color: white; padding: 20px 30px; 
+            border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        .btn { border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.2s; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+        .btn-outline { background: rgba(255,255,255,0.1); color: white; }
+        .btn-back { background: #48bb78; color: white; }
         /* Сетка матчей */
         .matches-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
         
@@ -30,10 +36,10 @@
         .aka { color: var(--aka); }
         .shiro { color: var(--shiro); }
 
-        .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; transition: 0.2s; font-size: 0.9rem; }
         .btn-primary { background: var(--shiro); color: white; }
         .btn-primary:hover { background: #2b6cb0; }
         .btn-disabled { background: #edf2f7; color: #a0aec0; cursor: not-allowed; }
+        .btn-generate { background: #212529; color: white; }
 
         /* Нативная модалка */
         #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
@@ -120,17 +126,16 @@
     </style>
 </head>
 <body>
-
-<div class="container">
-    <div class="top-bar">
-        <div>
-            <h1 style="margin:0; font-size: 1.5rem;">КУМИТЕ: ПОТОК БОЕВ</h1>
-            <div id="loadingStatus" style="font-size: 0.8rem; color: #a0aec0;">Обновление...</div>
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button class="btn" style="background:var(--green); color:white; width: auto;" onclick="fetchMatches()">🔄 Обновить поток</button>
-        </div>
+<div class="top-bar">
+    <div>
+        <h1 style="margin:0; font-size: 1.4rem;">КУМИТЕ <span style="opacity: 0.5;">(СПИСОК)</span></h1>
     </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="/view/{{ tournament_id }}" class="btn btn-outline" style="width:100px;">← К ТУРНИРУ</a>
+        <a href="/view/{{ tournament_id }}/kumite" class="btn btn-back" style="width:100px;">КАТЕГОРИИ</a>
+    <!-- <button class="btn btn-generate" onclick="generateAll()">⚡ Жеребьевка </button> -->
+    </div>
+</div>
 
     <div class="matches-list" id="matchesContainer">
         <!-- Сюда JS выведет ленту -->
@@ -162,18 +167,23 @@
 
 <script>
     const tId = "{{ tournament_id }}";
+    const cId = "{{ category_id }}"; // Если открыта конкретная категория
+    const tatId = "{{ tatami_number }}"; // Если открыта конкретная категория
 
     async function fetchMatches() {
-       const status = document.getElementById('loadingStatus');
-       status.innerText = "Загрузка всего потока...";
        
        try {
            // Запрашиваем специальный эндпоинт для всего турнира
-           const response = await fetch(`/${tId}/kumite/stream/all`);
+        //    const response = await fetch(`/${tId}/kumite/stream/all`)
+        let url = ''
+            if (cId) 
+                url = `/${tId}/kumite/${cId}`;
+            else
+                url =`/${tId}/kumite/all/${tatId}`;
+            const response = await fetch(url);
            if (!response.ok) throw new Error("Ошибка сервера");
            
            const data = await response.json();
-           console.log("Загружено матчей:", data);
            
            renderMatches(data);
            status.innerText = "Обновлено: " + new Date().toLocaleTimeString();
@@ -187,7 +197,6 @@
     function renderMatches(matches) {
     const container = document.getElementById('matchesContainer');
     container.innerHTML = '';
-
     matches.sort((a, b) => a.number - b.number).forEach(m => {
         const isReady = m.aka_id && m.shiro_id;
         const isFinished = m.is_finished;
@@ -209,26 +218,23 @@
             }
         }
 
+                        // <div style="font-weight:bold">${m.aka_id || '---'}</div>
         container.innerHTML += `
             <div class="m-card ${cardClass} ${m.is_repechage ? 'repechage' : ''}">
                 <div class="m-badge">№ ${m.number}</div>
-                <div class="m-meta">КАТ: ${m.category.name}</div>
+                <div class="m-meta">${m.category.name}</div>
                 
                 <div class="vs-container">
                     <!-- Участник AKA -->
                     <div class="participant ${akaClass}">
-                        <div class="aka" style="font-size:0.7rem; font-weight:900;">AKA</div>
-                        <div style="font-weight:bold">${m.aka_id || '---'}</div>
-                        <div class="score aka">${m.aka_score}</div>
+                        <div class="aka" style="font-size:0.95rem; font-weight:900;">${m.aka ? m.aka.first_name : '---'} ${m.aka ? m.aka.last_name : '---'} (${m.aka ? m.aka.club : '---'})</div>
                     </div>
                     
                     <div class="vs-label">VS</div>
                     
                     <!-- Участник SHIRO -->
                     <div class="participant ${shiroClass}">
-                        <div class="shiro" style="font-size:0.7rem; font-weight:900;">SHIRO</div>
-                        <div style="font-weight:bold">${m.shiro_id || '---'}</div>
-                        <div class="score shiro">${m.shiro_score}</div>
+                        <div class="shiro" style="font-size:0.95rem; font-weight:900;">${m.shiro ? m.shiro.first_name : '---'} ${m.shiro ? m.shiro.last_name : '---'} (${m.shiro ? m.shiro.club : '---'})</div>
                     </div>
                 </div>
 
@@ -256,8 +262,6 @@
     async function sendResult(winner) {
         const mId = document.getElementById('matchIdField').value;
         const payload = {
-            aka_score: parseInt(document.getElementById('akaInput').value),
-            shiro_score: parseInt(document.getElementById('shiroInput').value),
             winner_id: winner === 'aka' ? tempAkaId : tempShiroId,
             is_finished: true
         };
@@ -276,7 +280,7 @@
 
     async function generateAll() {
         if(!confirm("Внимание! Это удалит текущие сетки и создаст новые. Продолжить?")) return;
-        await fetch(`/${tournamentId}/kumite/generate-all`, { method: 'POST' });
+        await fetch(`/${tId}/kumite/generate-all`, { method: 'POST' });
         fetchMatches();
     }
 

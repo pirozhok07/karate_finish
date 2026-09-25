@@ -14,17 +14,18 @@ from app.child.services.service import fill_tournament_summary
 from app.database import get_db, get_t_db
 from app.tournament_main.model import Tournament
 from fastapi import APIRouter, Request, Depends, Response
-from sqlalchemy import select
+from sqlalchemy import select, exists, or_ , not_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.templating import Jinja2Templates
 from datetime import date
 from collections import defaultdict
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, contains_eager
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from io import BytesIO
 from fastapi.responses import StreamingResponse
 
 from openpyxl.utils import get_column_letter 
+from app.child.services.for_kumite import TEMPLATES
 
 # Импортируй свои модели и зависимость БД
 
@@ -237,9 +238,30 @@ async def export_athletes_excel(
 ):
     # 1. Загружаем данные турнира и атлетов
     tournament = await main_db.get(Tournament, tournament_id)
-    result = await t_db.execute(select(Category).options(
-                                selectinload(Category.draft_assignments)
-                                .selectinload(DraftAssignment.athlete)))
+
+    result = await t_db.execute(
+        select(Category)
+        .where(
+            exists()
+            .where(DraftAssignment.category_id == Category.id)
+            .where(
+                or_(DraftAssignment.athlete.has(is_present = True),
+                    and_(DraftAssignment.team_id.is_not(None),
+                        DraftAssignment.team.has(
+                            and_(
+                                Team.members.any(is_present = True),
+                                ~Team.members.any(is_present = False),
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        .options(
+            selectinload(Category.draft_assignments).selectinload(DraftAssignment.athlete),
+            selectinload(Category.draft_assignments).selectinload(DraftAssignment.team).selectinload(Team.members)
+        )
+    )
     categories = result.scalars().all()
 
     wb = load_workbook("data/temp_athlete.xlsx")
@@ -254,50 +276,96 @@ async def export_athletes_excel(
     center_align = Alignment(horizontal="center", vertical="center")
     header_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
     left_align = Alignment(horizontal="left", vertical="center", indent=1)
-    max_col=9
+    max_col=10
     for cat in categories:
         ws = wb.copy_worksheet(template_sheet)
         ws.title = cat.name[:30]
 
  # --- 1. ШАПКА ЛИСТА ---
         ws['A1'] = f'{tournament.type} "{tournament.title}"'
-        ws['A2'] = f'{tournament.description}'
+        # ws['A2'] = f'{tournament.description}'
         ws['H4'] = tournament.event_date.strftime("%d.%m.%Y")
         ws['A6'] = f'{cat.name}'
-
+        if cat.discipline == 'kumite': 
+            ws['A5'] = 'Протокол взвешивания'
+            ws.column_dimensions['h'].hidden = False
+        else:
+            ws.column_dimensions['h'].hidden = True
         current_row = 8 
-            
+        if len(cat.draft_assignments) <= 0: continue
         for idx, data in enumerate(cat.draft_assignments, 1):
-            a = data.athlete
-            row_data = [
-                idx,
-                a.last_name,
-                a.first_name,
-                a.middle_name,
-                a.birth_date.strftime("%d.%m.%Y"),
-                a.rank_kyu,
-                a.rank_sport,
-                a.club,
-                a.coach
-            ]
-            for col_idx, value in enumerate(row_data, 1):
-                cell = ws.cell(row=current_row, column=col_idx, value=value)
-                cell.font = data_font
-#     
-                # Выравнивание: ФИО и Клуб по левому краю, остальное по центру
-                cell.alignment = left_align if col_idx in [2, 3, 4] else center_align
-                
-                # Границы данных
-                l = thick if col_idx == 1 else thin
-                r = thick if col_idx == max_col else thin
-                b = thick if idx == len(cat.draft_assignments) else thin
-                cell.border = Border(left=l, right=r, top=thin, bottom=b)
-                
-                # # Формат для веса (0.0)
-                # if col_idx == 7 and value != "":
-                #     cell.number_format = '0.0'
+            
+            if (data.athlete):
+                a = data.athlete
+                if(not a.is_present): continue
+                row_data = [
+                    idx,
+                    a.last_name,
+                    a.first_name,
+                    a.middle_name,
+                    a.birth_date.strftime("%d.%m.%Y"),
+                    a.rank_kyu,
+                    a.rank_sport,
+                    a.weight_preview,
+                    a.club,
+                    a.coach
+                ]
+                for col_idx, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=current_row, column=col_idx, value=value)
+                    cell.font = data_font
+    #     
+                    # Выравнивание: ФИО и Клуб по левому краю, остальное по центру
+                    cell.alignment = left_align if col_idx in [2, 3, 4] else center_align
+                    
+                    # Границы данных
+                    l = thick if col_idx == 1 else thin
+                    r = thick if col_idx == max_col else thin
+                    b = thick if idx == len(cat.draft_assignments) else thin
+                    cell.border = Border(left=l, right=r, top=thin, bottom=b)
+                    
+                    # Формат для веса (0.0)
+                    if col_idx == 8 and value != "":
+                        cell.number_format = '0.0'
+                current_row += 1
+            else: 
+                teams = data.team
+                for ind, a in enumerate(teams.members, 1):
+                    row_data = [
+                        idx,
+                        a.last_name,
+                        a.first_name,
+                        a.middle_name,
+                        a.birth_date.strftime("%d.%m.%Y"),
+                        a.rank_kyu,
+                        a.rank_sport,
+                        a.weight_preview,
+                        a.club,
+                        a.coach
+                    ]
+                    for col_idx, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col_idx, value=value)
+                        cell.font = data_font
+        #     
+                        # Выравнивание: ФИО и Клуб по левому краю, остальное по центру
+                        cell.alignment = left_align if col_idx in [2, 3, 4] else center_align
+                        
+                        # Границы данных
+                        l = thick if col_idx == 1 else thin
+                        r = thick if col_idx == max_col else thin
+                        b = thick if (idx == len(cat.draft_assignments)*3 or ind == 3) else thin
+                        t = thick if (ind == 1) else thin
+                        cell.border = Border(left=l, right=r, top=t, bottom=b)
 
-            current_row += 1
+                    if (ind == 3):
+                        ws.merge_cells(start_row=current_row-2, start_column=1, end_row=current_row, end_column=1)
+                        ws.cell(row=current_row-2, column=1).border = Border(left=thick, right=thin, top=thick, bottom=thick)
+                        
+                    current_row += 1
+                
+
+
+        for col_idx in range(1, 11):
+            ws.cell(row=current_row, column=col_idx).border = Border(top=thick)
 
         current_row += 2 # Отступ между судьей и секретарем
         
@@ -306,27 +374,29 @@ async def export_athletes_excel(
         signature_line = Border(bottom=Side(border_style="thin", color="000000"))
         # Подпись Главного судьи
         ws.cell(row=current_row, column=1, value="Главный судья").font = footer_font
+        ws.cell(row=current_row, column=1).alignment = Alignment(horizontal="left")
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=2)
          # Создаем линию (объединяем колонки 2-4 и ставим нижнюю границу)
         ws.merge_cells(start_row=current_row, start_column=4, end_row=current_row, end_column=6)
         for col_idx in range(4, 7):
             ws.cell(row=current_row, column=col_idx).border = signature_line
-        ws.merge_cells(start_row=current_row, start_column=7, end_row=current_row, end_column=9)
-        ws.cell(row=current_row, column=7, value=f"{tournament.judge}").font = footer_font
-        ws.cell(row=current_row, column=7).alignment = Alignment(horizontal="right")
+        ws.merge_cells(start_row=current_row, start_column=9, end_row=current_row, end_column=10)
+        ws.cell(row=current_row, column=9, value=f"{tournament.judge}").font = footer_font
+        ws.cell(row=current_row, column=9).alignment = Alignment(horizontal="right")
 
         current_row += 2 # Отступ между судьей и секретарем
 
         # Подпись Главного секретаря
         ws.cell(row=current_row, column=1, value="Главный секретарь").font = footer_font
+        ws.cell(row=current_row, column=1).alignment = Alignment(horizontal="left")
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=2)
          # Создаем линию (объединяем колонки 2-4 и ставим нижнюю границу)
         ws.merge_cells(start_row=current_row, start_column=4, end_row=current_row, end_column=6)
         for col_idx in range(4, 7):
             ws.cell(row=current_row, column=col_idx).border = signature_line
-        ws.merge_cells(start_row=current_row, start_column=7, end_row=current_row, end_column=9)
-        ws.cell(row=current_row, column=7, value=f"{tournament.secretary}").font = footer_font
-        ws.cell(row=current_row, column=7).alignment = Alignment(horizontal="right")
+        ws.merge_cells(start_row=current_row, start_column=9, end_row=current_row, end_column=10)
+        ws.cell(row=current_row, column=9, value=f"{tournament.secretary}").font = footer_font
+        ws.cell(row=current_row, column=9).alignment = Alignment(horizontal="right")
         
         # Настройка параметров печати для этого листа
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
@@ -355,35 +425,127 @@ async def export_athletes_excel(
     )
 
 
-@router.get("/kumite/{category_id}/print", response_class=HTTPResponse)
+@router.get("/kumite-print", response_class=HTTPResponse)
 async def print_category_bracket(
-    request: Request, 
-    category_id: int, 
+    request: Request,  
     tournament_id: int,
-    t_db: AsyncSession = Depends(get_t_db)
+    t_db: AsyncSession = Depends(get_t_db),
+    main_db: AsyncSession = Depends(get_db)
 ):
-    # 1. Получаем категорию и все её матчи
-    cat = await t_db.get(Category, category_id)
+    # 1. Загружаем данные турнира и категорий со всеми раундами
+    # Должна быть связь: Category -> Rounds -> Scores
     result = await t_db.execute(
-        select(Match).where(Match.category_id == category_id).order_by(Match.round_number, Match.number)
+        select(Athlete)
+        .where(Athlete.is_present)
     )
-    matches = result.scalars().all()
-    
-    # 2. Группируем матчи по раундам для отрисовки колонок
-    bracket = {}
-    for m in matches:
-        if m.round_number not in bracket:
-            bracket[m.round_number] = []
-        bracket[m.round_number].append(m)
+    all_athletes = result.scalars().all()
+    def find_athlete(athletes, id):
+                        for athlete in athletes:
+                            if athlete.id == id:
+                                return athlete
+                        return None
+    result = await t_db.execute(
+        select(Category)
+        .join(Category.draft_assignments)
+        .join(DraftAssignment.athlete)
+        .where(
+            Category.discipline == "kumite",
+            Athlete.is_present == True
+            )
+        .options(contains_eager(Category.draft_assignments))
+        .order_by(Category.id)
+    )
 
-    return templates.TemplateResponse(
-        "print_kumite.html", 
-        {
-            "request": request, 
-            "category": cat,
-            "bracket": bracket, # Передаем сгруппированные матчи
-            "tournament_id": tournament_id
-        }
+    categories_athletes = result.unique().scalars().all()
+    
+    result = await t_db.execute(
+        select(Category).where(
+            Category.discipline == "kumite",
+            exists().where(Match.category_id == Category.id)
+        )
+        .options(selectinload(Category.winners),selectinload(Category.matches).options(selectinload(Match.aka), selectinload(Match.shiro)))
+        .order_by(Category.id)
+    )
+    
+    categories_matches = result.scalars().all()
+    tournament = await main_db.get(Tournament, tournament_id)
+    
+    wb = load_workbook("data/temp_kumite.xlsx")
+    
+    for category, athletes in zip(categories_matches, categories_athletes):
+        
+        count_athletes = len(athletes.draft_assignments)
+        if count_athletes == 2:
+            name_list = "len1"
+            position = TEMPLATES[1]
+        elif count_athletes == 3:
+            name_list = "len3"
+            position = TEMPLATES[3]
+        elif count_athletes == 4:
+            name_list = "len2"
+            position = TEMPLATES[2]
+        else:
+            name_list = "len4"
+            position = TEMPLATES[4]
+
+        ws = wb.copy_worksheet(wb[name_list])
+        ws.title = category.name[:30]
+        ws['A1'] = f'{tournament.type} "{tournament.title}"'
+        ws['A2'] = f'{tournament.description}'
+        ws['H4'] = tournament.event_date.strftime("%d.%m.%Y")
+        ws['A6'] = f'{category.name}'
+
+        matches = category.matches
+        matches.sort(key=lambda m: m.number)
+        rounds = defaultdict(list)
+        for match in matches:
+            rounds[match.round_number].append(match)
+        for round_num, matches in rounds.items():
+            for it, match in enumerate(matches, 1):
+                cell_aka_x, cell_aka_y = position[f"round_{round_num}"][f"match_{it}"]["aka"]
+                cell_shiro_x, cell_shiro_y = position[f"round_{round_num}"][f"match_{it}"]["shiro"]
+                cell_winner_x, cell_winner_y = position[f"round_{round_num}"][f"match_{it}"]["winner"]   
+                
+                aka = find_athlete(all_athletes, match.aka_id)
+                shiro = find_athlete(all_athletes, match.shiro_id)
+                if (cell_winner_x != None) and (cell_winner_y != None):
+                    winner = find_athlete(all_athletes, match.winner_id)
+                    ws.cell(cell_winner_x, cell_winner_y, value=f"{winner.first_name} {winner.last_name}")
+                    ws.cell(cell_winner_x+1, cell_winner_y, value=winner.club)
+
+                ws.cell(cell_aka_x, cell_aka_y, value=f"{aka.first_name} {aka.last_name}")
+                ws.cell(cell_aka_x+1, cell_aka_y, value=aka.club)
+                ws.cell(cell_shiro_x, cell_shiro_y, value=f"{shiro.first_name} {shiro.last_name}")
+                ws.cell(cell_shiro_x+1, cell_shiro_y, value=shiro.club)
+
+                
+                cell_fiil_x = cell_aka_x if (match.winner_id == match.aka_id) else cell_shiro_x
+                cell_fiil_y = cell_aka_y if (match.winner_id == match.aka_id) else cell_shiro_y
+                color = "FF0000" if (match.winner_id == match.aka_id) else "0000FF"
+                ws.cell(cell_fiil_x, cell_fiil_y).border = Border(
+                    top=Side(border_style='thick', color=color),
+                    right=Side(border_style='thick', color=color),
+                    left=Side(border_style='thick', color=color),
+                    ) 
+                ws.cell(cell_fiil_x+1, cell_fiil_y).border = Border(
+                    bottom=Side(border_style='thick', color=color),
+                    right=Side(border_style='thick', color=color),
+                    left=Side(border_style='thick', color=color),
+                    ) 
+            winners = category.winners
+            winners.sort(key=lambda m: m.place)
+            cell_winner_x, cell_winner_y = position["result"]  
+            for i, win in enumerate(winners):
+                winner = find_athlete(all_athletes, win.athlete_id)
+                ws.cell(cell_winner_x + i, cell_winner_y, value=f"{winner.first_name} {winner.last_name} {winner.middle_name} ({winner.club})")
+    
+    stream = BytesIO()
+    wb.save(stream)
+    
+    return Response(
+        content=stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Kumite_{tournament_id}.xlsx"}
     )
 
 
@@ -420,7 +582,7 @@ async def export_scores_excel(
     # 1. Загружаем данные турнира и категорий со всеми раундами
     # Должна быть связь: Category -> Rounds -> Scores
     result = await t_db.execute(
-        select(Category).options(
+        select(Category).where(Category.discipline == "kata").options(
             selectinload(Category.rounds).selectinload(Round.scores).options(
             # 3. А уже ИЗ ОЦЕНОК подгружаем Атлета и Команду с её составом
             selectinload(Score.athlete),
@@ -677,7 +839,7 @@ async def export_scores_excel(
     return Response(
         content=stream.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=Results_{tournament_id}.xlsx"}
+        headers={"Content-Disposition": f"attachment; filename=Kata_{tournament_id}.xlsx"}
     )
 
 

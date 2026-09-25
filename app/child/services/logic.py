@@ -17,20 +17,16 @@ def get_athlete_age(birth_date: date, event_date: date) -> int:
 def find_category_id(
     participant: Athlete | Team, 
     categories: list[Category], 
-    event_date: date,
+    flag: bool = False
 ) -> int | None:
     """Универсальный поиск: для атлетов (личка) и команд (unisex)."""
-    
-    # 1. Определяем параметры участника (пол и возраст)
-    
-    gender_to_find = participant.gender
-    age = get_athlete_age(participant.birth_date, event_date)
-    
-    # 2. Ищем подходящую категорию в списке
     for cat in categories:
         # Проверяем дисциплину (если нужно, можно добавить в аргументы, например "kata")
-        if (cat.gender == gender_to_find and 
-            cat.min_age <= age <= cat.max_age):
+        if flag:
+            if (cat.discipline != "kumite"): continue
+            if (cat.min_weight >= float(participant.weight_preview) or cat.max_weight < float(participant.weight_preview)): continue
+        if (cat.gender == participant.gender and 
+            cat.min_age <= participant.age <= cat.max_age):
             return cat.id
             
     return None

@@ -157,7 +157,7 @@
         <a href="/view/{{ t_id }}" class="btn btn-outline" style="background: rgba(255,255,255,0.1); color: white; border: none;">← К ТУРНИРУ</a>
     </div>
 
-    <form action="/view/{{ t_id }}/assign/calculate-web" method="post">
+    <form action="/view/{{ t_id }}/range-athletes" method="post">
         <button type="submit" class="btn btn-primary w-100">📊 СФОРМИРОВАТЬ СПИСКИ</button>
     </form>
     <!-- Импорт и фильтры -->
@@ -199,7 +199,7 @@
                 <br>
                 <div style="display: flex; gap: 5px;">
                     <button type="submit" class="btn btn-dark">ПРИМЕНИТЬ</button>
-                    <a href="/view/{{ t_id }}" class="btn btn-outline">СБРОС</a>
+                    <a href="/view/{{ t_id }}/athlete" class="btn btn-outline">СБРОС</a>
                 </div>
             </form>
         </div>
@@ -258,7 +258,10 @@
                 <th onclick="sortTable(1, this)">Имя <span class="sort-icon">↕</span></th>
                 <th onclick="sortTable(2, this)">Клуб <span class="sort-icon">↕</span></th>
                 <th onclick="sortTable(3, this)">Дата рождения <span class="sort-icon">↕</span></th>
-                <th onclick="sortTable(5, this)">Статус <span class="sort-icon">↕</span></th>
+                <th onclick="sortTable(4, this)">Возраст <span class="sort-icon">↕</span></th>
+                <th onclick="sortTable(5, this)">Вес(заяв) <span class="sort-icon">↕</span></th>
+                <th onclick="sortTable(6, this)">Вес(факт) <span class="sort-icon">↕</span></th>
+                <th onclick="sortTable(7, this)">Статус <span class="sort-icon">↕</span></th>
                 <th>Действия</th>
             </tr>
         </thead>
@@ -269,6 +272,9 @@
                 <td class="cell-first_name">{{ a.first_name }}</td>
                 <td class="cell-club"><span style="color: var(--gray)">{{ a.club or '-' }}</span></td>
                 <td class="cell-birth_date">{{ a.birth_date }}</td>
+                <td class="cell-age">{{ a.age }}</td>
+                <td class="cell-weight">{{ a.weight_preview or '' }}</td>
+                <td class="cell-weight">{{ a.weight_real or '' }}</td>
                 <td>
                     <span class="status-badge {% if a.is_present %}status-present{% else %}status-waiting{% endif %}">
                         {{ 'ЯВИЛСЯ' if a.is_present else 'ОЖИДАЕТСЯ' }}
@@ -283,7 +289,8 @@
                         data-middle_name="{{ a.middle_name or '' }}"
                         data-birth_date="{{ a.birth_date }}"
                         data-gender="{{ a.gender }}"
-                        data-weight="{{ a.weight or '' }}"
+                        data-weight_preview="{{ a.weight_preview or '' }}"
+                        data-weight_real="{{ a.weight_real or '' }}"
                         data-rank_kyu="{{ a.rank_kyu or '' }}"
                         data-rank_sport="{{ a.rank_sport or '' }}"
                         data-club="{{ a.club or '' }}"
@@ -321,7 +328,8 @@
                         <option value="female">Жен</option>
                     </select>
                 </div>
-                <div class="input-group"><label>Вес (кг)</label><input type="number" step="0.1" name="weight" id="edit-weight"></div>
+                <div class="input-group"><label>Вес (заяв)</label><input type="number" step="0.1" name="weight_preview" id="edit-weight_preview"></div>
+                <div class="input-group"><label>Вес (факт)</label><input type="number" step="0.1" name="weight_real" id="edit-weight_real"></div>
                 <div class="input-group"><label>Кю/Дан</label><input type="text" name="rank_kyu" id="edit-rank_kyu"></div>
             </div>
 
@@ -356,7 +364,8 @@
         // Сбрасываем иконки у всех заголовков
         const headers = table.querySelectorAll('th');
         headers.forEach(th => {
-            th.querySelector('.sort-icon').innerText = "↕";
+            const icon = th.querySelector('.sort-icon');
+            if (icon) icon.innerText = "↕";
             th.classList.remove('active-sort');
         });
 
@@ -401,7 +410,7 @@
         // Список полей, которые нужно заполнить в форме
         const fields = [
             'id', 'last_name', 'first_name', 'middle_name', 
-            'birth_date', 'gender', 'weight', 'rank_kyu', 
+            'birth_date', 'gender', 'weight_preview', 'weight_real', 'rank_kyu', 
             'rank_sport', 'club', 'coach'
         ];
 
@@ -430,7 +439,6 @@
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         data.is_present = form.is_present.checked; // Обработка чекбокса
-
         try {
             const response = await fetch(`/${tId}/athletes/${data.id}`, {
                 method: 'PUT',

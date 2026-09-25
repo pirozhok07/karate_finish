@@ -27,6 +27,8 @@ class AthleteRead(AthleteBase):
     is_present: bool
     team_statuses: Dict[int, bool]
 
+    
+
     # Позволяет Pydantic считывать данные напрямую из объектов SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,3 +40,10 @@ class AthleteUpdate(BaseModel):
     birth_date: date | None = None
     is_present: bool | None = None
     registration_status: str | None = None
+    gender: str | None = None
+    weight_preview: float | None = None
+    weight_real: float | None = None
+    rank_kyu: str | None = None
+    rank_sport: str | None = None
+    club: str | None = None
+    coach: str | None = None

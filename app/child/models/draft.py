@@ -22,3 +22,6 @@ class DraftAssignment(TournamentBase):
     team: Mapped[Optional["Team"]] = relationship() # Связь с командой
     
     category: Mapped["Category"] = relationship()
+   
+    def __repr__(self) -> str:
+        return f"<Performance DraftAssignment {self.athlete_id}; {self.team_id}; {self.category_id}; {self.reason}>"

@@ -4,38 +4,50 @@
     <meta charset="UTF-8">
     <title>Сетка: {{ category.name }}</title>
     <style>
-        :root {
-            --aka: #dc3545;
-            --shiro: #0d6efd;
-            --line: #cbd5e0;
-            --bg: #f7fafc;
-            --node: #ffffff;
-            --winner-bg: #f0fff4;
-            --winner-text: #2f855a;
+        :root { 
+            --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; 
+            --green: #28a745; --dark: #2c3e50; --gray: #a0aec0; --yellow: #f6e05e;
         }
 
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #2d3748; }
-        
+        /* Шапка */
+        .top-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: var(--dark); color: white; padding: 20px 30px; 
+            border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
-        .back-link { text-decoration: none; color: #4a5568; font-weight: bold; font-size: 0.9rem; }
+        .btn { border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.2s; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+        .btn-outline { background: rgba(255,255,255,0.1); color: white; }
+        .btn-back { background: #48bb78; color: white; }
 
         /* Контейнер сетки */
         .bracket-container { 
-            display: flex; 
-            flex-direction: row; 
             gap: 60px; 
             padding: 40px; 
             overflow-x: auto; 
             align-items: stretch;
             min-height: 600px;
         }
-
+        .bracket-grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+        .round-name-wrapper {
+            margin-bottom: 30px; /* ОТСТУП ОТ НАЗВАНИЯ ДО КАРТОЧЕК */
+            height: 50px;        /* Фиксированная высота, чтобы сетка не прыгала */
+            display: flex;
+            align-items: center; /* Выравниваем текст по центру */
+            justify-content: center;
+        }
         .round { display: flex; flex-direction: column; justify-content: space-around; width: 240px; flex-shrink: 0; }
         .round-name { text-align: center; font-size: 0.75rem; font-weight: 800; color: #a0aec0; text-transform: uppercase; margin-bottom: 20px; }
 
         /* Элемент матча */
         .match-wrapper { position: relative; display: flex; flex-direction: column; justify-content: center; margin: 20px 0; }
         
+        .empty-hidden {visibility: hidden;}
         .match-card { 
             background: var(--node); 
             border: 1px solid #e2e8f0; 
@@ -43,14 +55,14 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
             position: relative; 
             z-index: 2; 
-            transition: all 0.2s;
+            transition: all 0.2s;margin-bottom: 10px;
         }
         
         .match-card.active { border: 2px solid #4299e1; cursor: pointer; }
         .match-card.active:hover { transform: translateY(-2px); box-shadow: 0 10px 15px rgba(66, 153, 225, 0.2); }
         .match-card.finished { opacity: 0.85; border-left: 4px solid #48bb78; }
 
-        .m-num { position: absolute; left: -35px; top: 50%; transform: translateY(-50%); font-size: 0.7rem; font-weight: bold; color: #cbd5e0; }
+        .m-num { position: absolute; left: -45px; top: 50%; transform: translateY(-50%); font-size: 1rem; font-weight: bold; color: #222425; }
 
         .player { display: flex; justify-content: space-between; padding: 10px 15px; font-size: 0.95rem; border-bottom: 1px solid #edf2f7; }
         .player:last-child { border-bottom: none; }
@@ -58,11 +70,7 @@
         
         .score { font-weight: 900; color: #4a5568; margin-left: 10px; }
 
-        /* Линии-коннекторы */
-        .match-wrapper::after {
-            content: ""; position: absolute; right: -60px; width: 60px;
-            border-color: var(--line); border-style: solid; border-width: 0;
-        }
+        
         /* Верхний матч в паре */
         .round:not(:last-child) .match-wrapper:nth-child(even)::after {
             top: 50%; height: 50%; border-right-width: 2px; border-top-width: 2px; border-radius: 0 12px 0 0;
@@ -72,6 +80,12 @@
             bottom: 50%; height: 50%; border-right-width: 2px; border-bottom-width: 2px; border-radius: 0 0 12px 0;
         }
         .round:last-child .match-wrapper::after { display: none; }
+
+        .grid-1 { display: grid;  grid-template-rows: repeat(1,100px); height: 500px;}
+        .grid-2 { display: grid; grid-template-rows: repeat(2,100px); height: 500px;}
+        .grid-3 { display: grid; grid-template-rows: repeat(4,100px); height: 500px;}
+
+        .item-2 { grid-row: 3/4; }
 
         /* Модалка ввода результата */
         #modalOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -84,100 +98,215 @@
         .btn-shiro { background: var(--shiro); color: white; }
         .btn-cancel { background: #f7fafc; color: #a0aec0; }
         
-        .repechage-section { margin-top: 50px; padding: 30px; border-top: 3px dashed #e2e8f0; }
+        .club-name { font-size:0.8rem; color:#000000; background-color: #90daf1; margin-left: 10px; padding: 5px; border-radius: 60%;}
+
+        .repechage-section { margin-top: 50px; display: block; padding: 30px; border-top: 3px dashed #e2e8f0; }
     </style>
 </head>
 <body>
 
-<div class="header">
+<div class="top-bar">
     <div>
-        <a href="javascript:history.back()" class="back-link">← К списку турнира</a>
-        <h1 style="margin: 5px 0;">{{ category.name }}</h1>
+        <h1 style="margin:0; font-size: 1.4rem;">КУМИТЕ <span style="opacity: 0.5;">(СЕТКА)</span></h1>
     </div>
-    <div style="text-align: right; font-size: 0.8rem; color: #a0aec0;">
-        КУМИТЕ | Турнир #{{ tournament_id }}
+    <div style="display: flex; gap: 10px;">
+        <a href="/view/{{ tournament_id }}" class="btn btn-outline" style="width:100px;">← К ТУРНИРУ</a>
+        <a href="/view/{{ tournament_id }}/kumite" class="btn btn-back" style="width:100px;">КАТЕГОРИИ</a>
     </div>
 </div>
-
 <div class="bracket-container">
-    {% for r_num in bracket.keys()|sort %}
-    <div class="round">
-        <div class="round-name">Раунд {{ r_num }}</div>
-        {% for m in bracket[r_num] if not m.is_repechage %}
-        <div class="match-wrapper">
-            <span class="m-num">№{{ m.number }}</span>
-            <div class="match-card {{ 'active' if m.aka_id and m.shiro_id and not m.is_finished else '' }} {{ 'finished' if m.is_finished else '' }}"
-                 onclick="openMatchModal({{ m.id }}, {{ m.number }}, '{{ m.aka_id }}', '{{ m.shiro_id }}')">
-                
-                <div class="player {{ 'winner' if m.winner_id == m.aka_id and m.is_finished else '' }}">
-                    <span>{{ m.aka_id if m.aka_id else '???' }}</span>
-                    <span class="score">{{ m.aka_score if m.is_finished else '' }}</span>
-                </div>
-                
-                <div class="player {{ 'winner' if m.winner_id == m.shiro_id and m.is_finished else '' }}">
-                    <span>{{ m.shiro_id if m.shiro_id else '???' }}</span>
-                    <span class="score">{{ m.shiro_score if m.is_finished else '' }}</span>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endfor %}
+    <!-- js -->
 </div>
 
 <!-- Секция боя за 3 место -->
-{% set tp_match = [] %}
-{% for r in bracket.values() %}{% for m in r %}{% if m.is_repechage %}{% set _ = tp_match.append(m) %}{% endif %}{% endfor %}{% endfor %}
 
-{% if tp_match %}
-<div class="repechage-section">
-    <h3>🥉 Малый финал (За 3 место)</h3>
-    {% for m in tp_match %}
-    <div class="match-wrapper" style="width: 240px;">
-        <span class="m-num">№{{ m.number }}</span>
-        <div class="match-card {{ 'active' if m.aka_id and m.shiro_id and not m.is_finished else '' }} {{ 'finished' if m.is_finished else '' }}"
-             onclick="openMatchModal({{ m.id }}, {{ m.number }}, '{{ m.aka_id }}', '{{ m.shiro_id }}')">
-            <div class="player {{ 'winner' if m.winner_id == m.aka_id and m.is_finished else '' }}">
-                <span>{{ m.aka_id if m.aka_id else '---' }}</span>
-                <span class="score">{{ m.aka_score if m.is_finished else '' }}</span>
-            </div>
-            <div class="player {{ 'winner' if m.winner_id == m.shiro_id and m.is_finished else '' }}">
-                <span>{{ m.shiro_id if m.shiro_id else '---' }}</span>
-                <span class="score">{{ m.shiro_score if m.is_finished else '' }}</span>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
 
 <!-- Модальное окно -->
 <div id="modalOverlay">
     <div class="modal">
         <h2 id="modalTitle" style="margin-top:0">Бой №</h2>
         <input type="hidden" id="fieldMatchId">
-        
-        <div class="score-row">
-            <div>
-                <label style="color:var(--aka); font-weight:bold;">AKA</label><br>
-                <small id="akaIdDisp"></small><br>
-                <input type="number" id="akaInput" value="0">
-            </div>
-            <div>
-                <label style="color:var(--shiro); font-weight:bold;">SHIRO</label><br>
-                <small id="shiroIdDisp"></small><br>
-                <input type="number" id="shiroInput" value="0">
-            </div>
-        </div>
 
-        <button class="btn btn-aka" onclick="sendScore('aka')">Победа AKA</button>
-        <button class="btn btn-shiro" onclick="sendScore('shiro')">Победа SHIRO</button>
+        <button id="akaIdDisp" class="btn btn-aka" onclick="sendScore('aka')">Победа AKA</button>
+        <button id="shiroIdDisp" class="btn btn-shiro" onclick="sendScore('shiro')">Победа SHIRO</button>
         <button class="btn btn-cancel" onclick="closeModal()">Отмена</button>
     </div>
 </div>
 
 <script>
     const tournamentId = "{{ tournament_id }}";
+    const bracketData = {{ bracket|tojson }};
+    (async function renderBracket(bracketData){
+        const bracket = bracketData
+        const containerMain = document.querySelector('.bracket-container');
+        if (!containerMain) return;
+        const container = document.createElement('div');
+        container.className = 'bracket-grid';
+        const roundNumbers = Object.keys(bracket).map(Number).sort((a,b)=>b-a);
+        roundNumbers.forEach(roundNum =>{
+            
+            const matches = bracket[roundNum].filter(m => ! m.is_repechage);
+            console.log(matches)
+
+            // 1. Создаем контейнер для конкретного РАУНДА (колонка)
+            const roundDiv = document.createElement('div');
+            roundDiv.className = 'round grid-' + roundNum;
+            // Делаем колонку flex-колонкой, чтобы было проще управлять
+            roundDiv.style.display = 'flex';
+            roundDiv.style.flexDirection = 'column';
+            roundDiv.style.alignItems = 'center';
+            roundDiv.style.marginRight = '50px'; // Отступ между колонками раундов
+
+            // 2. Создаем ОТДЕЛЬНЫЙ контейнер для названия
+            const roundNameWrapper = document.createElement('div');
+            roundNameWrapper.className = 'round-name-wrapper';
+            // Кладем туда сам текст
+            const roundName = document.createElement('div');
+            roundName.className = 'round-name';
+            roundName.textContent = 'РАУНД ' + roundNum;
+            roundNameWrapper.appendChild(roundName);
+
+            // 3. Создаем отдельный контейнер для матчей
+            const matchWrapper = document.createElement('div');
+            matchWrapper.className = 'match-wrapper';
+            matchWrapper.style.display = 'flex';
+            matchWrapper.style.flexDirection = 'column';
+            matchWrapper.style.gap = '20px'; // Отступ между карточками
+
+            const expectedCount = Math.pow(2, roundNum - 1);
+
+            // Рисуем столько слотов, сколько ожидается (например, 4 для 3-го раунда)
+            for (let i = 0; i < expectedCount; i++) {
+                // Берем реальный матч из массива, если он есть (по индексу i)
+                const m = matches[i]; 
+                
+                // Если матча нет, создаем пустышку, чтобы отрисовать слот
+                const emptyMatch = m || { 
+                    id: null, 
+                    number: null, 
+                    is_finished: false, 
+                    is_repechage: false,
+                    winner_id: null, 
+                    aka_id: null, 
+                    shiro_id: null,
+                    aka_score: null, 
+                    shiro_score: null
+                };
+
+                // Создаем карточку
+                const matchCard = document.createElement('div');
+                matchCard.className = 'match-card';
+                if (!m) {
+                    matchCard.classList.add('empty-hidden')
+                }else{
+                    if (emptyMatch.is_finished) matchCard.classList.add('finished');
+                    if (emptyMatch.aka_id && emptyMatch.shiro_id && !emptyMatch.is_finished) matchCard.classList.add('active');
+
+                    // Логика клика (если есть реальный матч)
+                    if (m) {
+                        matchCard.onclick = () => openMatchModal(m.id, m.number, m.aka, m.shiro);
+                    }
+                }
+
+                // Номер матча (если есть)
+                const matchNumber = document.createElement('span');
+                matchNumber.className = 'm-num';
+                matchNumber.textContent = m ? ('#' + m.number_for_tatami) : '';
+                matchCard.appendChild(matchNumber);
+
+                // Функция создания игрока (пустого или реального)
+                const createPlayDiv = (side) => {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'player';
+                    const player = side === 'aka' ? emptyMatch.aka : emptyMatch.shiro;
+                    const name = player ? (`${player.first_name} ${player.last_name}` || '???') : '???';
+                    const club = player ? (player.club || '???') : '???';
+                    if (emptyMatch.is_finished && emptyMatch.winner_id === player.id) {
+                        playerDiv.classList.add('winner');
+                    }
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = name || '???';
+                    const clubSpan = document.createElement('span');
+                    clubSpan.className = "club-name"
+                    clubSpan.textContent = club || '???';
+                    playerDiv.appendChild(nameSpan);
+                    playerDiv.appendChild(clubSpan);
+
+                    return playerDiv;
+                };
+
+                matchCard.appendChild(createPlayDiv('aka'));
+                matchCard.appendChild(createPlayDiv('shiro'));
+
+                matchWrapper.appendChild(matchCard);
+            }
+
+            roundDiv.appendChild(roundNameWrapper); // Сначала название
+            roundDiv.appendChild(matchWrapper);     // Потом карточки
+            
+            container.appendChild(roundDiv); // Добавляем колонку в общий контейнер
+        });
+        containerMain.appendChild(container);
+
+        const tpMatch = [];
+        Object.values(bracket).forEach(matches => {
+            matches.forEach(m => {
+                if (m.is_repechage)
+                    tpMatch.push(m)
+            });
+        });
+        if (tpMatch.length > 0){
+            const repechageDiv = document.createElement('div');
+            repechageDiv.className = 'repechage-section';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'Бой за 3-е место';
+            repechageDiv.appendChild(h3);
+            const matchWrapper = document.createElement('div');
+            matchWrapper.className = 'match-wrapper';
+            matchWrapper.style.width = '240px';
+            tpMatch.forEach(m => {
+                const matchCard = document.createElement('div');
+                matchCard.className = 'match-card';
+                if(m.aka && m.shiro && !m.is_finished) 
+                    matchCard.classList.add('active');
+                if(m.is_finished)
+                    matchCard.classList.add('finished');
+                matchCard.onclick = () => openMatchModal(m.id, m.number, m.aka, m.shiro);
+                const matchNumber = document.createElement('span')
+                matchNumber.className = 'm-num';
+                matchNumber.textContent = '#' + m.number_for_tatami;
+                matchCard.appendChild(matchNumber);
+                const createPlayDiv = (side) => {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'player';
+                    const player = side === 'aka' ? m.aka : m.shiro;
+                    const name = player ? (`${player.first_name} ${player.last_name}` || '???') : '???';
+                    const club = player ? (player.club || '???') : '???';
+                    if (m.is_finished && m.winner_id === player.id) {
+                        playerDiv.classList.add('winner');
+                    }
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = name || '???';
+                    const clubSpan = document.createElement('span');
+                    clubSpan.className = "club-name"
+                    clubSpan.textContent = club || '???';
+                    playerDiv.appendChild(nameSpan);
+                    playerDiv.appendChild(clubSpan);
+
+                    return playerDiv;
+                };
+                matchCard.appendChild(createPlayDiv('aka')); // Сначала название
+                matchCard.appendChild(createPlayDiv('shiro'));     // Потом карточки
+                
+                matchWrapper.appendChild(matchCard); // Добавляем колонку в общий контейнер
+            });
+            repechageDiv.appendChild(matchWrapper);
+            containerMain.appendChild(repechageDiv);
+        }
+    })(bracketData);
+
     let tempIds = { aka: null, shiro: null };
 
     function openMatchModal(id, num, aka, shiro) {
@@ -186,8 +315,8 @@
 
         document.getElementById('fieldMatchId').value = id;
         document.getElementById('modalTitle').innerText = "Бой №" + num;
-        document.getElementById('akaIdDisp').innerText = "ID: " + aka;
-        document.getElementById('shiroIdDisp').innerText = "ID: " + shiro;
+        document.getElementById('akaIdDisp').innerText = `${aka.first_name} ${aka.last_name} (${aka.club})`;
+        document.getElementById('shiroIdDisp').innerText = `${shiro.first_name} ${shiro.last_name} (${shiro.club})`;
         
         tempIds.aka = aka;
         tempIds.shiro = shiro;
@@ -201,13 +330,9 @@
 
     async function sendScore(winnerSide) {
         const matchId = document.getElementById('fieldMatchId').value;
-        const akaScore = document.getElementById('akaInput').value;
-        const shiroScore = document.getElementById('shiroInput').value;
         
         const payload = {
-            aka_score: parseInt(akaScore),
-            shiro_score: parseInt(shiroScore),
-            winner_id: winnerSide === 'aka' ? parseInt(tempIds.aka) : parseInt(tempIds.shiro),
+            winner_id: winnerSide === 'aka' ? tempIds.aka.id : tempIds.shiro.id,
             is_finished: true
         };
 

@@ -9,7 +9,6 @@ from app.child.models.round import Round
 from app.child.models.score import Score
 from app.child.schemas.category import CategoryRead
 from app.child.services.logic import find_category_id
-from app.child.services.redirect import run_draft_assignment_logic
 from app.child.services.service import generate_all_kumite_horizontal
 from app.database import get_db, get_t_db
 from app.tournament_main.model import Tournament
@@ -106,7 +105,10 @@ async def update_draft_category(
     if not draft:
         raise HTTPException(status_code=404, detail="Запись не найдена")
     
-    draft.category_id = category_id
-    draft.reason = "Изменено вручную"
+    if category_id == 0:
+        await t_db.execute(delete(DraftAssignment).where(DraftAssignment.id == draft_id))
+    else:
+        draft.category_id = category_id
+        draft.reason = "Изменено вручную"
     await t_db.commit()
     return {"status": "updated"}
