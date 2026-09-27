@@ -238,6 +238,7 @@
 
         .count-badge { background: #edf2f7; color: var(--dark); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; }
         .green {background:#77d68d}
+        .red {background:#f36060}
 
         /* Таблица */
         .table-container { padding: 10px 20px 20px; border-top: 1px solid #edf2f7; }
@@ -311,7 +312,7 @@
                     <details class="cat-item">
             <summary>
                 <span>{{ cat.name }}</span>
-                <span class="count-badge{% if count == cat.draft_assignments|length %} green{% endif %}">{{ count }} / {{ cat.draft_assignments|length }} ЧЕЛ.</span>
+                <span class="count-badge{% if count == cat.draft_assignments|length %} green{% endif %} {% if cat.draft_assignments|length == 0 %} red{% endif %}">{{ count }} / {{ cat.draft_assignments|length }} ЧЕЛ.</span>
             </summary>
             <div class="table-container">
                 <table class="data-table">

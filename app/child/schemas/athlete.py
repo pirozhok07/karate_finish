@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict
 from datetime import date
 
@@ -47,3 +47,4 @@ class AthleteUpdate(BaseModel):
     rank_sport: str | None = None
     club: str | None = None
     coach: str | None = None
+    removed_category_ids: Optional[List[int]] = None

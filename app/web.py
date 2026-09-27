@@ -21,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import create_tournament_db, get_db, get_t_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select, asc, desc, func, extract
+from sqlalchemy import delete, select, asc, desc, func, extract, update
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
@@ -188,6 +188,12 @@ async def view_tournament(
         filtered_athletes.sort(key=lambda x: (x.club or "", x.last_name.lower()))
     else:
         filtered_athletes.sort(key=lambda x: x.last_name.lower())
+
+    for a in filtered_athletes:
+        a.categories_data = [
+            {"id": d.category.id, "name":d.category.name}
+            for d in a.draft_assignments if d.category
+        ] or []
 
     # Сортировка команд (по названию)
     teams.sort(key=lambda x: (x.name or "").lower())
@@ -590,3 +596,11 @@ async def get_tournament_results_page(request: Request, tournament_id: int, t_db
         "tournament": tournament,
         "categories": formatted_categories
     })
+
+@router.post("/view/{tournament_id}/all_registr")
+async def set_all_present(tournament_id: int, t_db: AsyncSession = Depends(get_t_db)):
+    await t_db.execute(
+        update(Athlete).values(is_present=True)
+    )
+    await t_db.commit()
+    return {"statue": "success"}

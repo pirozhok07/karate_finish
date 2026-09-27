@@ -13,7 +13,7 @@ from app.tournament_main.schema import TournamentCreate, TournamentRead
 from fastapi import APIRouter, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, UploadFile, File
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm.attributes import set_committed_value
 import re
 from fastapi.responses import RedirectResponse
@@ -69,11 +69,20 @@ async def update_athlete(
     athlete = await t_db.get(Athlete, athlete_id)
     if not athlete:
         raise HTTPException(status_code=404, detail="Athlete not found")
-    print(athlete_data)
+
     update_date = athlete_data.model_dump(exclude_unset=True, exclude_none=True)
+    removed = update_date.pop('removed_category_ids', None)
+
     for key, value in update_date.items():
         if hasattr(athlete, key):
             setattr(athlete, key, value)
+
+    if removed is not None:
+        for cat_id in removed:
+            await t_db.execute(
+                delete(DraftAssignment)
+                .where(DraftAssignment.athlete_id == athlete_id, DraftAssignment.category_id == cat_id)
+            )
     # 2. Обновляем статус
     
     # 3. Синхронизация команд (ваша логика)
@@ -171,3 +180,4 @@ async def upload_athletes_from_excel(
         await t_db.rollback()
         print(f"ОШИБКА: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

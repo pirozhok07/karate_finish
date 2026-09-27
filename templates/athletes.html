@@ -142,7 +142,38 @@
         .edit-btn { background: none; border: none; cursor: pointer; color: var(--primary-color); font-size: 1.1rem; }
         .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
         .modal-footer { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-
+        .category-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .category-tag {
+            display: inline-flex;
+            justify-content: space-between;
+            padding: 3px 10px;
+            background: #eef2f7;
+            border: 1px solid #d0d7ed;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: #333;
+            user-select: none;
+        }
+        .category-tag .cat-name {
+            cursor: pointer;
+        }
+        .category-tag .cat-name:hover{
+            text-decoration: underline;
+        }
+        .category-tag .cat-remove{
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            color: #999;
+            padding: 0 2px;
+        }
+        .category-tag .cat-remove:hover{
+            color: #d00;
+        }
     </style>
 </head>
 <body>
@@ -159,6 +190,9 @@
 
     <form action="/view/{{ t_id }}/range-athletes" method="post">
         <button type="submit" class="btn btn-primary w-100">📊 СФОРМИРОВАТЬ СПИСКИ</button>
+    </form>
+    <form action="/view/{{ t_id }}/all_registr" method="post">
+        <button type="submit" class="btn btn-primary w-100">📊 Заявить всех</button>
     </form>
     <!-- Импорт и фильтры -->
     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
@@ -295,7 +329,7 @@
                         data-rank_sport="{{ a.rank_sport or '' }}"
                         data-club="{{ a.club or '' }}"
                         data-coach="{{ a.coach or '' }}"
-                        data-category="{{ a.draft_assignments or '' }}"
+                        data-categories='{{ a.categories_data | tojson }}'
                         data-is_present="{{ 'true' if a.is_present else 'false' }}">
                         ✎
                     </button>
@@ -342,12 +376,7 @@
             <div class="input-group"><label>Тренер</label><input type="text" name="coach" id="edit-coach"></div>
             <div class="input-group">
                 <label>Категории</label>
-                <div> 
-                    {% for cat in all_categories %} 
-                    <label>
-                        <input type="checkbox" name="categories_ids" value="{{ cat.id }}" id="edit-club">
-                    </label> 
-                </div>
+                <div id="edit-categories" class="category-list" data-athlete-id="" data-categories="[]" data-changed="false" ></div>
             </div>
 
             <div class="input-group checkbox-group">
@@ -364,6 +393,7 @@
 </div>
 <script>
     const tId = "{{ t_id }}";
+    let current
 
     function sortTable(n, el) {
         const table = document.getElementById("athletesTable");
@@ -413,6 +443,47 @@
         el.querySelector('.sort-icon').innerText = dir === "asc" ? "↑" : "↓";
     }
 
+    function renderCategories(){
+        const box = document.getElementById('edit-categories');
+        if(!box) return;
+
+        let categories = [];
+        try {
+           categories = JSON.parse(box.dataset.categories || '[]');
+        }catch (e) {
+            categories = [];
+        }
+        box.innerHTML='';
+
+        categories.forEach((cat, index) => {
+            const tag = document.createElement('span');
+            tag.className = 'category-tag';
+            const label = document.createElement('span')
+            label.className = 'cat-name';
+            label.textContent = cat.name;
+
+            const remove = document.createElement('span')
+            remove.className = 'cat-remove'
+            remove.textContent = 'x'
+            remove.addEventListener('click', () => {
+                const arr = JSON.parse(box.dataset.categories);
+                const idx = arr.findIndex(c => c.id === cat.id);
+                if (idx === -1) return;
+                const removed = JSON.parse(box.dataset.removed || '[]');
+                if(!removed.includes(cat.id)) removed.push(cat.id);
+                box.dataset.removed = JSON.stringify(removed);
+                arr.splice(idx,1);
+                box.dataset.categories = JSON.stringify(arr);
+                renderCategories();
+            }) 
+
+            tag.appendChild(label);
+            tag.appendChild(remove);
+            box.appendChild(tag);
+        });
+    }
+
+
     function openEditModal(button) {
         const modal = document.getElementById('editModal');
         const dataset = button.dataset; // Получаем все data-атрибуты
@@ -421,7 +492,7 @@
         const fields = [
             'id', 'last_name', 'first_name', 'middle_name', 
             'birth_date', 'gender', 'weight_preview', 'weight_real', 'rank_kyu', 
-            'rank_sport', 'club', 'coach', 'category'
+            'rank_sport', 'club', 'coach'
         ];
 
         fields.forEach(field => {
@@ -437,6 +508,14 @@
             checkPresent.checked = dataset.is_present === 'true';
         }
 
+        const box = document.getElementById('edit-categories');
+        if (box) {
+            box.dataset.athleteId = dataset.id;
+            box.dataset.categories = dataset.categories || '[]';
+            box.dataset.removed = '[]';
+            renderCategories();
+        }
+
         modal.style.display = "block";
     }
 
@@ -449,6 +528,14 @@
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         data.is_present = form.is_present.checked; // Обработка чекбокса
+        
+        Object.keys(data).forEach(k => {
+            if (data[k] === '') data[k] = null;
+        });
+        const box = document.getElementById('edit-categories');
+        if(box){
+            data.removed_category_ids = JSON.parse(box.dataset.removed || '[]');
+        }
         try {
             const response = await fetch(`/${tId}/athletes/${data.id}`, {
                 method: 'PUT',
@@ -457,6 +544,7 @@
             });
 
             if (response.ok) {
+                if(box) box.dataset.changed = 'false';
                 location.reload(); // Для простоты обновим страницу или обновите строку через JS
             }
         } catch (err) {

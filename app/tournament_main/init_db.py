@@ -93,5 +93,25 @@ async def setup_initial_templates(db: AsyncSession):
                     )
                     db.add(assoc)
 
+        # 2. Заполняем Категории Кумите
+    for t_data in data["category_templates_kumite"]:
+        # Извлекаем список имен ката, чтобы не передать лишнего в конструктор модели
+        min_weigths = t_data.pop("min_weigth", [])
+        max_weigths = t_data.pop("max_weigth", [])
+        base_name = t_data.pop("name", 'Кумите')
+        
+        if min_weigths and max_weigths:
+            for min_w, max_w in zip(min_weigths, max_weigths):
+                new_name = f'{base_name} до {max_w} кг' if max_w != 999 else f'{base_name} {min_w}+ кг'
+
+                template = CategoryTemplate(
+                    **t_data,
+                    name=new_name,
+                    min_weight=min_w,
+                    max_weight=max_w
+                )
+                db.add(template)
+                await db.flush()
+
     await db.commit()
     print("Данные успешно инициализированы!")

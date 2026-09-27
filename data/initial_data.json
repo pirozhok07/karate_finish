@@ -112,6 +112,49 @@
         "discipline": "kata",
         "min_age": 10, "max_age": 11, "gender": "unisex",
         "allowed_kata_names": ["Тайкёку соно ити", "Тайкёку соно ни", "Тайкёку соно сан", "Пинан соно ити"]
+      },
+      {
+        "name": "Юноши и девушки 12-13 лет",
+        "discipline": "kata",
+        "min_age": 12, "max_age": 13, "gender": "unisex",
+        "allowed_kata_names": ["Тайкёку соно сан", "Пинан соно ити", "Пинан соно ни", "Пинан соно сан","Гэкисай Дай", "Гэкисай Сё"]
+      },
+      {
+        "name": "Юноши и девушки 14-15 лет",
+        "discipline": "kata",
+        "min_age": 14, "max_age": 15, "gender": "unisex",
+        "allowed_kata_names": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Сё"],
+        "allowed_kata_names_second": ["Пинан соно ён", "Пинан соно го","Янцу", "Цуки но ката", "Сайха", "Гэкисай Дай", "Гэкисай Сё", "Канку Дай", "Сэйентин", "Сусихо", "Гарю", "Сэйпай"]
+      }
+    ],
+    "category_templates_kumite": [
+      {
+        "name": "Мальчики 10-11 лет",
+        "discipline": "kumite",
+        "min_age": 10, "max_age": 11, "gender": "male",
+        "min_weigth": [0, 30, 35, 40, 45, 50, 55],
+        "max_weigth": [30, 35, 40, 45, 50, 55, 999]
+      },
+      {
+        "name": "Девочки 10-11 лет",
+        "discipline": "kumite",
+        "min_age": 10, "max_age": 11, "gender": "female",
+        "min_weigth": [0, 30, 35, 40, 45, 50, 55],
+        "max_weigth": [30, 35, 40, 45, 50, 55, 999]
+      },
+      {
+        "name": "Юноши 12-13 лет",
+        "discipline": "kumite",
+        "min_age": 12, "max_age": 13, "gender": "male",
+        "min_weigth": [0, 35, 40, 45, 50, 55],
+        "max_weigth": [35, 40, 45, 50, 55, 999]
+      },
+      {
+        "name": "Девушки 12-13 лет",
+        "discipline": "kumite",
+        "min_age": 12, "max_age": 13, "gender": "female",
+        "min_weigth": [0, 40, 45, 50, 55],
+        "max_weigth": [40, 45, 50, 55, 999]
       }
     ]
   }
