@@ -283,69 +283,86 @@
     })
 
     let currentFilter = 'all';
+    // async function toggleTeamPresence(tId, athleteId, checkbox) {
+    //     const isPresent = checkbox.checked;
+    //     const athleteRow = document.getElementById(`row-${athleteId}`);
+        
+    //     try {
+    //         const res = await fetch(`/${tId}/athletes/${athleteId}`, {
+    //             method: 'PUT',
+    //             headers: { 'Content-Type': 'application/json' },
+    //             body: JSON.stringify({ is_present: isPresent })
+    //         });
+    //     }catch (e) { 
+    //         console.error("Ошибка регистрации:", e); 
+    //         checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
+    //         alert("Не удалось сохранить изменения");
+    //     }
+    // }
+
     async function togglePresence(tId, athleteId, checkbox) {
-    const isPresent = checkbox.checked;
-    const athleteRow = document.getElementById(`row-${athleteId}`);
-    
-    try {
-        const res = await fetch(`/${tId}/athletes/${athleteId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_present: isPresent })
-        });
+        const isPresent = checkbox.checked;
+        const athleteRow = document.getElementById(`row-${athleteId}`);
+        
+        try {
+            const res = await fetch(`/${tId}/athletes/${athleteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_present: isPresent })
+            });
 
-        if (res.ok) {
-            const data = await res.json();
-            console.log("Данные от сервера:", data); // Проверяем структуру
-            // 1. Обновляем строку атлета в основной таблице
-            athleteRow.classList.toggle('present', isPresent);
-            athleteRow.setAttribute('data-present', isPresent ? "true" : "false");
+            if (res.ok) {
+                const data = await res.json();
+                console.log("Данные от сервера:", data); // Проверяем структуру
+                // 1. Обновляем строку атлета в основной таблице
+                athleteRow.classList.toggle('present', isPresent);
+                athleteRow.setAttribute('data-present', isPresent ? "true" : "false");
 
-            // 2. ОБНОВЛЯЕМ КОМАНДЫ на основе данных от сервера (data.team_statuses)
-            if (data.team_statuses) {
-                Object.keys(data.team_statuses).forEach(teamId => {
-                    const isTeamReady = data.team_statuses[teamId];
-                    const tRow = document.getElementById(`team-row-${teamId}`);
-                    
-                    if (tRow) {
-                        // Меняем класс строки (подсветка)
-                        tRow.classList.toggle('present', isTeamReady);
-                        tRow.setAttribute('data-present', isTeamReady ? "True" : "False");
+                // 2. ОБНОВЛЯЕМ КОМАНДЫ на основе данных от сервера (data.team_statuses)
+                if (data.team_statuses) {
+                    Object.keys(data.team_statuses).forEach(teamId => {
+                        const isTeamReady = data.team_statuses[teamId];
+                        const tRow = document.getElementById(`team-row-${teamId}`);
+                        
+                        if (tRow) {
+                            // Меняем класс строки (подсветка)
+                            tRow.classList.toggle('present', isTeamReady);
+                            tRow.setAttribute('data-present', isTeamReady ? "True" : "False");
 
-                        // Обновляем чекбокс команды
-                        const teamCheckbox = tRow.querySelector('input[type="checkbox"]');
-                        if (teamCheckbox) teamCheckbox.checked = isTeamReady;
+                            // Обновляем чекбокс команды
+                            const teamCheckbox = tRow.querySelector('input[type="checkbox"]');
+                            if (teamCheckbox) teamCheckbox.checked = isTeamReady;
 
-                        // Обновляем бейдж статуса (если он есть)
-                        const badge = tRow.querySelector('.status-badge');
-                        if (badge) {
-                            badge.className = isTeamReady ? 'status-badge status-present' : 'status-badge status-waiting';
-                            badge.innerText = isTeamReady ? 'ГОТОВ' : 'НЕПОЛНЫЙ';
+                            // Обновляем бейдж статуса (если он есть)
+                            const badge = tRow.querySelector('.status-badge');
+                            if (badge) {
+                                badge.className = isTeamReady ? 'status-badge status-present' : 'status-badge status-waiting';
+                                badge.innerText = isTeamReady ? 'ГОТОВ' : 'НЕПОЛНЫЙ';
+                            }
+
+                            // Подсвечиваем конкретного атлета внутри состава команды
+                            const nameInTeam = tRow.querySelector(`.member-${athleteId}`);
+                            if (nameInTeam) {
+                                nameInTeam.style.color = isPresent ? 'var(--green)' : 'var(--aka)';
+                                nameInTeam.style.fontWeight = isPresent ? 'bold' : 'normal';
+                            }
                         }
+                    });
+                }
 
-                        // Подсвечиваем конкретного атлета внутри состава команды
-                        const nameInTeam = tRow.querySelector(`.member-${athleteId}`);
-                        if (nameInTeam) {
-                            nameInTeam.style.color = isPresent ? 'var(--green)' : 'var(--aka)';
-                            nameInTeam.style.fontWeight = isPresent ? 'bold' : 'normal';
-                        }
-                    }
-                });
+                // 3. Общие обновления интерфейса
+                if (typeof updateStats === 'function') updateStats();
+                if (typeof applyAllFilters === 'function') applyAllFilters();
+
+            } else {
+                throw new Error("Ошибка сервера");
             }
-
-            // 3. Общие обновления интерфейса
-            if (typeof updateStats === 'function') updateStats();
-            if (typeof applyAllFilters === 'function') applyAllFilters();
-
-        } else {
-            throw new Error("Ошибка сервера");
+        } catch (e) { 
+            console.error("Ошибка регистрации:", e); 
+            checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
+            alert("Не удалось сохранить изменения");
         }
-    } catch (e) { 
-        console.error("Ошибка регистрации:", e); 
-        checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
-        alert("Не удалось сохранить изменения");
     }
-}
 
 
 

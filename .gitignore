@@ -3,5 +3,5 @@ __pycache__/
 *.db
 *.log
 .env
-data/*.xlsx
-!data/temp_result.xlsx  # Оставляем шаблоны, если они нужны
+
+

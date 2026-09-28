@@ -84,6 +84,7 @@ async def promote_to_next_round(t_db: AsyncSession, round_id: int):
 
     res = await t_db.execute(select(Score).where(Score.round_id == round_id))
     current_perfs = res.scalars().all()
+    original_order = [p.id for p in current_perfs]
 
     # 2. Определяем режим: Финал, Лимит прохода, Способ сортировки
     is_final = False
@@ -204,6 +205,7 @@ async def promote_to_next_round(t_db: AsyncSession, round_id: int):
         existing_keys = {(s.athlete_id, s.team_id) for s in existing}
 
         promoted = participant_data[:limit]
+        promoted.sort(key=lambda x: original_order.index(x["obj"].id))
         for item in promoted:
             key = (item["a_id"], item["t_id"])
             if key not in existing_keys:

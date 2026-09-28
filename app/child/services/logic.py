@@ -46,7 +46,7 @@ def get_promotion_count(current_count: int, round_number: int) -> int:
     
     if round_number == 2:
         if current_count >= 16: return 8
-        if current_count >= 5: return 4
+        if current_count >= 6: return 4
         if current_count >= 3: return 3
         return current_count
     

@@ -146,20 +146,10 @@
 <div id="overlay">
     <div class="modal">
         <h3 id="modalTitle" style="margin-top:0">Бой №</h3>
-        <input type="hidden" id="matchIdField">
-        <div class="score-box">
-            <div>
-                <label class="aka">AKA (ID: <span id="akaLabel"></span>)</label><br>
-                <input type="number" id="akaInput" value="0" min="0">
-            </div>
-            <div>
-                <label class="shiro">SHIRO (ID: <span id="shiroLabel"></span>)</label><br>
-                <input type="number" id="shiroInput" value="0" min="0">
-            </div>
-        </div>
         <div style="display:grid; gap:10px;">
-            <button class="btn" style="background:var(--aka); color:white" onclick="sendResult('aka')">ПОБЕДА AKA</button>
-            <button class="btn" style="background:var(--shiro); color:white" onclick="sendResult('shiro')">ПОБЕДА SHIRO</button>
+            <input type="hidden" id="fieldMatchId">
+            <button class="btn" id="akaLabel" style="background:var(--aka); color:white" onclick="sendResult('aka')">ПОБЕДА AKA</button>
+            <button class="btn" id="shiroLabel" style="background:var(--shiro); color:white" onclick="sendResult('shiro')">ПОБЕДА SHIRO</button>
             <button class="btn" style="background:#eee; color:#666" onclick="closeModal()">Отмена</button>
         </div>
     </div>
@@ -239,7 +229,7 @@
                 </div>
 
                 ${(!isFinished && isReady) ? 
-                    `<button class="btn btn-primary" onclick="openModal(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">ВВЕСТИ РЕЗУЛЬТАТ</button>` : 
+                    `<button class="btn btn-primary" onclick="openModal(${m.id}, ${m.number_for_tatami}, '${m.aka ? m.aka.first_name : '---'} ${m.aka ? m.aka.last_name : '---'} (${m.aka ? m.aka.club : '---'})', '${m.shiro ? m.shiro.first_name : '---'} ${m.shiro ? m.shiro.last_name : '---'} (${m.shiro ? m.shiro.club : '---'})')">ВВЕСТИ РЕЗУЛЬТАТ</button>` : 
                     `<button class="btn btn-disabled" disabled>${isFinished ? 'РЕЗУЛЬТАТ ЗАФИКСИРОВАН' : 'ОЖИДАНИЕ ПАРЫ'}</button>`}
             </div>
         `;
@@ -249,7 +239,7 @@
     // Логика управления результатами
     let tempAkaId, tempShiroId;
     function openModal(id, num, aka, shiro) {
-        document.getElementById('matchIdField').value = id;
+        document.getElementById('fieldMatchId').innerText = id;
         document.getElementById('modalTitle').innerText = "Бой №" + num;
         document.getElementById('akaLabel').innerText = aka;
         document.getElementById('shiroLabel').innerText = shiro;
@@ -260,7 +250,7 @@
     function closeModal() { document.getElementById('overlay').style.display = 'none'; }
 
     async function sendResult(winner) {
-        const mId = document.getElementById('matchIdField').value;
+        const mId = document.getElementById('fieldMatchId').value;
         const payload = {
             winner_id: winner === 'aka' ? tempAkaId : tempShiroId,
             is_finished: true
