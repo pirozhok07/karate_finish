@@ -8,6 +8,7 @@ from app.child.models.draft import DraftAssignment
 from app.child.models.round import Round
 from app.child.models.score import Score
 from app.child.schemas.category import CategoryRead
+from app.child.schemas.draft import DraftAdd
 from app.child.services.logic import find_category_id
 from app.child.services.service import generate_all_kumite_horizontal
 from app.database import get_db, get_t_db
@@ -110,5 +111,24 @@ async def update_draft_category(
     else:
         draft.category_id = category_id
         draft.reason = "Изменено вручную"
+    await t_db.commit()
+    return {"status": "updated"}
+
+
+@router.post("/add-draft")
+async def add_draft_category(
+    data: DraftAdd,
+    t_db: DBSession
+):
+    athleteId = data.athleteId or None
+    teamId = data.teamId or None
+    categoryId = data.categoryId
+    new_draft = DraftAssignment(
+        athlete_id = athleteId ,
+        team_id = teamId ,
+        category_id = categoryId,
+        reason = 'Ручное добавление'
+    )
+    t_db.add(new_draft)
     await t_db.commit()
     return {"status": "updated"}

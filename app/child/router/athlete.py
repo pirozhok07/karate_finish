@@ -3,7 +3,7 @@ from typing import Annotated
 from app.child.models.category import Category
 from app.child.models.draft import DraftAssignment
 from app.child.models.team import Team
-from app.child.schemas.athlete import AthleteBase, AthleteCreate, AthleteRead, AthleteUpdate
+from app.child.schemas.athlete import AthleteBase, AthleteCreate, AthleteGet, AthleteRead, AthleteUpdate
 from app.child.models.athlete import Athlete
 from app.child.services.excel import parse_athletes_excel
 from app.child.services.logic import find_category_id, sync_team_presence
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, UploadFile, File
 from sqlalchemy import select, delete
 from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.orm import selectinload
 import re
 from fastapi.responses import RedirectResponse
 
@@ -22,6 +23,26 @@ DBSession = Annotated[AsyncSession, Depends(get_t_db)]
 UpFile = Annotated[UploadFile, File(...)]
 
 router = APIRouter(prefix="/{tournament_id}/athletes", tags=["Athlete"])
+    
+@router.get(
+    "/{athlete_id}",
+    response_model=AthleteGet,
+    summary="Получить спортсмена"
+)
+async def get_athlete(
+    athlete_id: int, 
+    t_db: DBSession
+) -> Athlete:
+    
+    athlete = (await t_db.execute(
+        select(Athlete)
+        .options(selectinload(Athlete.draft_assignments).selectinload(DraftAssignment.category))
+        .where(Athlete.id == athlete_id))
+    ).scalar_one_or_none()
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Спортсмен не найден")
+    
+    return athlete
     
 @router.post(
     "/",
@@ -72,6 +93,7 @@ async def update_athlete(
 
     update_date = athlete_data.model_dump(exclude_unset=True, exclude_none=True)
     removed = update_date.pop('removed_category_ids', None)
+    added = update_date.pop('added_category_ids', None)
 
     for key, value in update_date.items():
         if hasattr(athlete, key):
@@ -83,6 +105,15 @@ async def update_athlete(
                 delete(DraftAssignment)
                 .where(DraftAssignment.athlete_id == athlete_id, DraftAssignment.category_id == cat_id)
             )
+
+    if added is not None:
+        for cat_id in added:
+            new_draft = DraftAssignment(
+                athlete_id = athlete_id ,
+                category_id = cat_id,
+                reason = 'Ручное добавление'
+            )
+            t_db.add(new_draft)
     # 2. Обновляем статус
     
     # 3. Синхронизация команд (ваша логика)

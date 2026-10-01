@@ -315,7 +315,8 @@
                     </span>
                 </td>
                 <td>
-                    <button class="edit-btn" 
+                    <button class="edit-btn" onclick="openEditModal(this.dataset.id)" data-id="{{ a.id }}">✎</button>
+                    <!-- <button class="edit-btn" 
                         onclick="openEditModal(this)"
                         data-id="{{ a.id }}"
                         data-last_name="{{ a.last_name }}"
@@ -332,8 +333,8 @@
                         data-categories='{{ a.categories_data | tojson }}'
                         data-is_present="{{ 'true' if a.is_present else 'false' }}">
                         ✎
-                    </button>
-</td>
+                    </button> -->
+                </td>
                 </td>
             </tr>
             {% endfor %}
@@ -377,6 +378,7 @@
             <div class="input-group">
                 <label>Категории</label>
                 <div id="edit-categories" class="category-list" data-athlete-id="" data-categories="[]" data-changed="false" ></div>
+                <button type="button" class="btn btn-sm-btn-primary" id="toggleCategoryBtn">+ Добавить</button>
             </div>
 
             <div class="input-group checkbox-group">
@@ -393,7 +395,9 @@
 </div>
 <script>
     const tId = "{{ t_id }}";
-    let current
+    const all_categories = {{ all_categories | tojson  | safe }};
+    let currentCategoryRow = null;
+    let isCategoryInputVisible = false;
 
     function sortTable(n, el) {
         const table = document.getElementById("athletesTable");
@@ -454,26 +458,29 @@
             categories = [];
         }
         box.innerHTML='';
+        if (categories.length == 0) return
 
-        categories.forEach((cat, index) => {
+        categories.forEach((d, index) => {
             const tag = document.createElement('span');
             tag.className = 'category-tag';
             const label = document.createElement('span')
             label.className = 'cat-name';
-            label.textContent = cat.name;
+            label.textContent = d.category.name;
 
             const remove = document.createElement('span')
             remove.className = 'cat-remove'
             remove.textContent = 'x'
+
             remove.addEventListener('click', () => {
-                const arr = JSON.parse(box.dataset.categories);
-                const idx = arr.findIndex(c => c.id === cat.id);
+                const catId = Number(d.category_id)
+                let current = JSON.parse(box.dataset.categories || '[]');
+                let removed = JSON.parse(box.dataset.removed || '[]');
+                const idx = current.findIndex(c => c.category_id === catId);
                 if (idx === -1) return;
-                const removed = JSON.parse(box.dataset.removed || '[]');
-                if(!removed.includes(cat.id)) removed.push(cat.id);
+                if(!removed.includes(catId)) removed.push(catId);
+                current.splice(idx,1);
+                box.dataset.categories = JSON.stringify(current);
                 box.dataset.removed = JSON.stringify(removed);
-                arr.splice(idx,1);
-                box.dataset.categories = JSON.stringify(arr);
                 renderCategories();
             }) 
 
@@ -483,8 +490,55 @@
         });
     }
 
+    async function openEditModal(athleteId) {
+        const modal = document.getElementById('editModal');
+        modal.style.display = "block";
+        try{
+            const response = await fetch(`/${tId}/athletes/${athleteId}`);
+            if(!response.ok) throw new Error('Не удалось загрузить спортсмена');
+            const athlete = await response.json();
+            const fields = [
+                'id', 'last_name', 'first_name', 'middle_name', 
+                'birth_date', 'gender', 'weight_preview', 'weight_real', 'rank_kyu', 
+                'rank_sport', 'club', 'coach'
+            ];
+            fields.forEach(field => {
+                const input = document.getElementById('edit-' + field);
+                if (input) {
+                    input.value = athlete[field] !== null && athlete[field] !==undefined ? athlete[field] : '';
+                }
+            });
+            const checkPresent = document.getElementById('edit-is_present');
+            if (checkPresent) {
+                checkPresent.checked = athlete.is_present === true || athlete.is_present === 1;
+            }
+            console.log(athlete)
+            console.log(athlete.draft_assignments)
+            const box = document.getElementById('edit-categories');
+            if (box) {
+                box.dataset.athleteId = athlete.id;
+                const categories = athlete.draft_assignments || [];
+                box.dataset.categories = JSON.stringify(categories) ;
+                box.dataset.removed = '[]';
+                box.dataset.added = '[]';
+                renderCategories();
+            }
+            currentCategoryRow = null;
+            isCategoryInputVisible = false;
+            const toggleBtn = document.getElementById('toggleCategoryBtn');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '+ Добавить';
+                toggleBtn.onclick = () => addCategoryRow();
+            }
+        }catch(error){
+            alert('Не удалось загрузить ', error);
+            modal.style.display = "none";
+        }
 
-    function openEditModal(button) {
+        
+    }
+
+    function openEditModal_(button) {
         const modal = document.getElementById('editModal');
         const dataset = button.dataset; // Получаем все data-атрибуты
 
@@ -517,9 +571,21 @@
         }
 
         modal.style.display = "block";
+
+        currentCategoryRow = null;
+        isCategoryInputVisible = false;
+        const toggleBtn = document.getElementById('toggleCategoryBtn');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '+ Добавить';
+            toggleBtn.onclick = () => addCategoryRow(dataset.id);
+        }
     }
 
-    function closeModal() {
+    function closeModal() { 
+        const box = document.getElementById('edit-categories');
+        box.dataset.categories = '[]';
+        box.dataset.removed = '[]';
+        box.dataset.added = '[]';
         document.getElementById('editModal').style.display = "none";
     }
 
@@ -535,6 +601,7 @@
         const box = document.getElementById('edit-categories');
         if(box){
             data.removed_category_ids = JSON.parse(box.dataset.removed || '[]');
+            data.added_category_ids = JSON.parse(box.dataset.added || '[]');
         }
         try {
             const response = await fetch(`/${tId}/athletes/${data.id}`, {
@@ -551,30 +618,147 @@
             alert('Ошибка при сохранении', err);
         }
     }
-    function switchView(type) {
-    const personalTable = document.getElementById('athletesTable');
-    const teamsContainer = document.getElementById('teamsTableContainer');
-    const btnPersonal = document.getElementById('tab-btn-personal');
-    const btnTeams = document.getElementById('tab-btn-teams');
+    
+    function addCategoryRow(){
+        const toggleBtn = document.getElementById('toggleCategoryBtn');
+        const container = document.getElementById('edit-categories');
+        if (currentCategoryRow && currentCategoryRow.parentNode) {
+            currentCategoryRow.parentNode.removeChild(currentCategoryRow);
+            currentCategoryRow = null;
+            isCategoryInputVisible = false;
+            toggleBtn.innerHTML = '+ Добавить';
+        }else{
+            const row = document.createElement('div');
+            row.className = 'category-row';
+            const disciplineSelect = document.createElement('select');
+            disciplineSelect.className = 'form-control discipline-select';
+            disciplineSelect.innerHTML = `
+                <option calue="">Выберите дисциплину </option>
+                <option value="kata">Ката</option>
+                <option value="kumite">Кумите</option>
+                <option value="group">Ката-группа</option>
+                `;
+            const categorySelect = document.createElement('select');
+            categorySelect.className = 'form-control category-select';
+            categorySelect.innerHTML = `<option value="">Сначала выберите дисциплину</option>`
+            disciplineSelect.addEventListener('change', function() {
+                updateCategoryOptions(this.value, categorySelect);
+            });
+            const box = document.getElementById('edit-categories');
+            categorySelect.addEventListener('change', function() {
+                const catId = Number(this.value);
+                const discipline = disciplineSelect.value;
+                const categoryList = all_categories[discipline] || []
+                const category = categoryList.find(c => Number(c.id) == catId) 
+                if (!category) return
 
-    if (type === 'teams') {
-        // Скрываем личников, показываем команды
-        personalTable.style.setProperty('display', 'none', 'important');
-        teamsContainer.style.setProperty('display', 'block', 'important');
-        
-        // Стили кнопок
-        btnTeams.className = 'btn btn-dark';
-        btnPersonal.className = 'btn btn-outline';
-    } else {
-        // Показываем личников, скрываем команды
-        personalTable.style.setProperty('display', 'table', 'important');
-        teamsContainer.style.setProperty('display', 'none', 'important');
-        
-        // Стили кнопок
-        btnPersonal.className = 'btn btn-dark';
-        btnTeams.className = 'btn btn-outline';
+                let current = JSON.parse(box.dataset.categories || '[]');
+                let added = JSON.parse(box.dataset.added || '[]');
+                const newCategory = {
+                    id: null,
+                    category_id: catId,
+                    category: category
+                }
+
+                if(!added.includes(catId)) added.push(catId);
+                current.push(newCategory);
+                box.dataset.categories = JSON.stringify(current);
+                box.dataset.added = JSON.stringify(added);
+                // addCategoryToDate(athleteId, newCtegoryId);
+                if (currentCategoryRow && currentCategoryRow.parentNode) {
+                    currentCategoryRow.parentNode.removeChild(currentCategoryRow);
+                }
+                currentCategoryRow = null;
+                isCategoryInputVisible = false;
+                toggleBtn.innerHTML = '+ Добавить';
+                renderCategories();
+            })
+            row.appendChild(disciplineSelect);
+            row.appendChild(categorySelect);
+            container.appendChild(row);
+            currentCategoryRow = row;
+            isCategoryInputVisible = true;
+            toggleBtn.innerHTML = 'Отменить';
+        }
+        return 
     }
-}
+
+    function updateCategoryOptions(discipline, categorySelect) {
+        categorySelect.innerHTML = '';
+        console.log(all_categories)
+        const options = all_categories[discipline] || []
+        console.log(options)
+        if(options.length === 0) {
+            categorySelect.innerHTML=`<option value="">Нет доступных категорий</option>`;
+        }else{
+            const defaultOption = document.createElement('option');
+            defaultOption.value='';
+            defaultOption.textContent = 'Выберите категорию';
+            const opt = document.createElement('option');
+                opt.textContent = "Выберите категорию";
+                categorySelect.appendChild(opt);
+            options.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                categorySelect.appendChild(opt);
+            });
+        }
+    }
+
+    async function addCategoryToDate(athleteId, categoryId){
+        try {
+            const response = await fetch(`/${tId}/category/add-draft`,{
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    athleteId: athleteId,
+                    categoryId: categoryId
+                })
+            });
+            if (!response.ok) {
+                throw new Error('Ошибка созранения категории')
+            }
+            // const updateResponce = await fetch(`/${tId}/athlete/add-draft`,{
+            //     method: 'POST',
+            //     headers: {'Content-Type': 'application/json'},
+            //     body: JSON.stringify({
+            //         athleteId: athleteId,
+            //         categoryId: categoryId
+            //     })
+            // });
+            await openEditModal(athleteId)
+        }catch(error){
+            console.error(error)
+            alert('Не удалось сохранить', error)
+        }
+    }
+
+    function switchView(type) {
+        const personalTable = document.getElementById('athletesTable');
+        const teamsContainer = document.getElementById('teamsTableContainer');
+        const btnPersonal = document.getElementById('tab-btn-personal');
+        const btnTeams = document.getElementById('tab-btn-teams');
+
+        if (type === 'teams') {
+            // Скрываем личников, показываем команды
+            personalTable.style.setProperty('display', 'none', 'important');
+            teamsContainer.style.setProperty('display', 'block', 'important');
+            
+            // Стили кнопок
+            btnTeams.className = 'btn btn-dark';
+            btnPersonal.className = 'btn btn-outline';
+        } else {
+            // Показываем личников, скрываем команды
+            personalTable.style.setProperty('display', 'table', 'important');
+            teamsContainer.style.setProperty('display', 'none', 'important');
+            
+            // Стили кнопок
+            btnPersonal.className = 'btn btn-dark';
+            btnTeams.className = 'btn btn-outline';
+        }
+    }
+
 </script>
 </body>
 </html>

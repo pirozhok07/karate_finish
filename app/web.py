@@ -159,7 +159,8 @@ async def view_tournament(
         select(Team).options(selectinload(Team.members))
     )
     teams = list(team_result.scalars().all())
-
+    # Загружаем категории 
+   
     # 3. Фильтрация атлетов (Личников)
     filtered_athletes = all_athletes
     if search:
@@ -201,12 +202,26 @@ async def view_tournament(
     # 5. Список клубов берем из ПОЛНОГО списка атлетов (чтобы фильтр не "съедал" варианты)
     unique_clubs = sorted(list(set(a.club for a in all_athletes if a.club)))
     
+
+    categories = (await t_db.execute(select(Category))).scalars().all()
+    all_categories = defaultdict(list)
+    for cat in categories:
+        if cat.discipline == "kumite":
+            all_categories["kumite"].append(cat.to_dict())
+        elif cat.gender == "unisex":
+            pass
+            # all_categories["group"].append(cat.to_dict())
+        else:
+            all_categories["kata"].append(cat.to_dict())
+
+
     return templates.TemplateResponse("athletes.html", {
         "request": request, 
         "athletes": filtered_athletes,
         "teams": teams, # ОБЯЗАТЕЛЬНО передаем в шаблон
         "t_id": tournament_id,
         "clubs": unique_clubs,
+        "all_categories": all_categories,
         "age_categories": ["8-9", "10-11", "12-13", "14-15", "16-17", "18+"]
     })
 
