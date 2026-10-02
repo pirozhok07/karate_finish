@@ -37,8 +37,8 @@ class Category(TournamentBase):
         return{
             "id": self.id,
             "name": self.name,
-        }
-
+        }  
+      
 
 class Kata(TournamentBase):
     __tablename__ = "katas"

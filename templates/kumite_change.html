@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ category.name }} — сетка</title>
+    <style>
+        body {
+            font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+        }
+        .bracket {
+            display: flex;
+            gap: 30px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+        .round {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 260px;
+        }
+        .round-title {
+            font-weight: bold;
+            font-size: 0.95em;
+            color: #333;
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .match {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 8px;
+            background: #fafafa;
+            position: relative;
+        }
+        .match-number {
+            font-size: 0.75em;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .slot {
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            border: 1px dashed #ddd;
+            border-radius: 4px;
+            margin: 4px 0;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .athlete {
+            width: 100%;
+            padding: 6px 10px;
+            background: #fff;
+            border-radius: 4px;
+            cursor: grab;
+            user-select: none;
+            font-size: 0.9em;
+        }
+        .athlete.empty {
+            background: transparent;
+            color: #999;
+            font-style: italic;
+            cursor: default;
+        }
+        .athlete.dragging {
+            opacity: 0.5;
+        }
+        .slot.drop-hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .slot.drop-forbidden {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+        .match.finished {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+
+<h1>{{ category.name }} — сетка</h1>
+<div id="brackets-container"></div>
+
+<script>
+// ============================================================
+// Данные с бэкенда
+// ============================================================
+const bracketData   = {{ bracket  | tojson | safe }};
+const athletesMap   = {{ athletes | tojson | safe }};
+const categoryId    = {{ category.id }};
+const tournamentId  = {{ t_id }};
+const maxRound      = {{ max_round }};
+
+// ============================================================
+// Рендер сетки
+// ============================================================
+document.addEventListener('DOMContentLoaded', renderBracket);
+
+function renderBracket() {
+    const container = document.getElementById('brackets-container');
+    container.innerHTML = '';
+
+    const bracket = document.createElement('div');
+    bracket.className = 'bracket';
+
+    // Ключи в bracketData — строки, приводим к числам
+    const rounds = Object.keys(bracketData).map(Number).sort((a, b) => b - a);
+
+    rounds.forEach(roundNum => {
+        const roundDiv = document.createElement('div');
+        roundDiv.className = 'round';
+        roundDiv.dataset.round = roundNum;
+
+        const title = document.createElement('div');
+        title.className = 'round-title';
+        title.textContent = `Раунд ${roundNum}`;
+        roundDiv.appendChild(title);
+
+        bracketData[roundNum].forEach(match => {
+            roundDiv.appendChild(renderMatch(match));
+        });
+
+        bracket.appendChild(roundDiv);
+    });
+
+    container.appendChild(bracket);
+}
+
+function renderMatch(match) {
+    const div = document.createElement('div');
+    div.className = 'match';
+    if (match.is_finished) div.classList.add('finished');
+    div.dataset.matchId = match.id;
+    div.dataset.round = match.round_number;
+    div.dataset.finished = match.is_finished ? 'true' : 'false';
+
+    const num = document.createElement('div');
+    num.className = 'match-number';
+    num.textContent = `Бой №${match.number}`;
+    div.appendChild(num);
+
+    div.appendChild(renderSlot(match, 1, match.aka_id, match.aka_name));
+    div.appendChild(renderSlot(match, 2, match.shiro_id, match.shiro_name));
+
+    return div;
+}
+
+function renderSlot(match, slotNum, athleteId, athleteName) {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.dataset.slot = slotNum;
+
+    if (athleteId) {
+        const el = document.createElement('div');
+        el.className = 'athlete';
+        el.draggable = true;
+        el.dataset.athleteId = athleteId;
+        el.dataset.matchId = match.id;
+        el.dataset.slot = slotNum;
+        el.textContent = athleteName || athletesMap[athleteId] || '—';
+
+        el.addEventListener('dragstart', handleDragStart);
+        el.addEventListener('dragend', handleDragEnd);
+
+        slot.appendChild(el);
+    } else {
+        const el = document.createElement('div');
+        el.className = 'athlete empty';
+        el.textContent = '— свободно —';
+        slot.appendChild(el);
+    }
+
+    slot.addEventListener('dragover', handleDragOver);
+    slot.addEventListener('dragleave', handleDragLeave);
+    slot.addEventListener('drop', handleDrop);
+
+    return slot;
+}
+
+// ============================================================
+// Drag-and-drop
+// ============================================================
+let dragged = null;
+
+function handleDragStart(e) {
+    dragged = {
+        element: e.target,
+        matchId: Number(e.target.dataset.matchId),
+        slot: Number(e.target.dataset.slot),
+        athleteId: Number(e.target.dataset.athleteId),
+        round: Number(e.target.closest('.match').dataset.round),
+        isFinished: e.target.closest('.match').dataset.finished === 'true',
+    };
+    e.target.classList.add('dragging');
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    dragged = null;
+    document.querySelectorAll('.slot').forEach(s => {
+        s.classList.remove('drop-hover', 'drop-forbidden');
+    });
+}
+
+function handleDragOver(e) {
+    if (!dragged) return;
+
+    const slot = e.currentTarget;
+    const targetMatch = slot.closest('.match');
+    const targetRound = Number(targetMatch.dataset.round);
+    const targetFinished = targetMatch.dataset.finished === 'true';
+    const targetMatchId = Number(targetMatch.dataset.matchId);
+    const targetSlot = Number(slot.dataset.slot);
+
+    // Нельзя бросить в тот же самый слот
+    const sameSlot = targetMatchId === dragged.matchId && targetSlot === dragged.slot;
+
+    // Нельзя бросить в другой раунд
+    const sameRound = targetRound === dragged.round;
+
+    const canDrop =
+        sameRound &&
+        !dragged.isFinished &&
+        !targetFinished &&
+        !sameSlot;
+
+    if (canDrop) {
+        e.preventDefault();
+        slot.classList.add('drop-hover');
+        slot.classList.remove('drop-forbidden');
+    } else {
+        slot.classList.add('drop-forbidden');
+        slot.classList.remove('drop-hover');
+    }
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('drop-hover', 'drop-forbidden');
+}
+
+async function handleDrop(e) {
+    e.preventDefault();
+    const slot = e.currentTarget;
+    slot.classList.remove('drop-hover', 'drop-forbidden');
+
+    if (!dragged) return;
+
+    const targetMatch = slot.closest('.match');
+    const targetMatchId = Number(targetMatch.dataset.matchId);
+    const targetSlot = Number(slot.dataset.slot);
+
+    // Атлет, который уже сидит в целевом слоте (может быть null)
+    const targetAthleteEl = slot.querySelector('.athlete:not(.empty)');
+    const targetAthleteId = targetAthleteEl
+        ? Number(targetAthleteEl.dataset.athleteId)
+        : null;
+
+    try {
+        const response = await fetch(
+            `/${tournamentId}/kumite/matches/swap`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source: {
+                        matchId: dragged.matchId,
+                        slot: dragged.slot,
+                        athleteId: dragged.athleteId,
+                    },
+                    target: {
+                        matchId: targetMatchId,
+                        slot: targetSlot,
+                        athleteId: targetAthleteId,
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Ошибка сохранения');
+        }
+
+        // Перезагружаем страницу — самый простой способ синхронизации
+        location.reload();
+
+    } catch (error) {
+        console.error(error);
+        alert('Не удалось сохранить: ' + error.message);
+        location.reload();
+    }
+}
+</script>
+
+</body>
+</html>

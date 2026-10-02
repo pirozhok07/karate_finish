@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 
 class ScoreUpdate(BaseModel):
     performance_kata: Optional[str] = None
@@ -8,3 +8,12 @@ class ScoreUpdate(BaseModel):
     s3: float = 0.0
     s4: float = 0.0
     s5: float = 0.0
+
+class OrderItem(BaseModel):
+    # athlete_id: int
+    score_id: int
+    position: int
+
+
+class OrderUpdate(BaseModel):
+    order: List[OrderItem]

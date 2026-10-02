@@ -291,6 +291,8 @@ async def view_categories(
         "t_id": tournament_id
     })
 
+
+
 @router.get("/view/{tournament_id}/registration", response_class=HTMLResponse)
 async def registration_page(
     request: Request, 
@@ -346,6 +348,61 @@ async def kata_page(
     return templates.TemplateResponse("kata.html", {
         "request": request,
         "categories": categories,
+        "t_id": tournament_id
+    })
+
+@router.get("/view/{tournament_id}/kata-change", response_class=HTMLResponse)
+async def kata_change(
+    request: Request, 
+    tournament_id: int, 
+    t_db: AsyncSession = Depends(get_t_db)
+):
+    # Загружаем структуру: Категории -> Круги -> Оценки -> Данные атлета
+    result = await t_db.execute(
+        select(Category)
+        .options(
+            # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
+            selectinload(Category.rounds)
+            .selectinload(Round.scores)
+            .options(
+                # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
+                selectinload(Score.athlete),
+                selectinload(Score.team).selectinload(Team.members)
+            ),
+        )
+        .where(Category.discipline == "kata") 
+        .order_by(Category.id)
+    )
+    categories = result.scalars().all()
+    categories_data=[]
+    for cat in categories:
+        first_round = next((r for r in cat.rounds if r.scores), None)
+        athletes = []
+        if first_round:
+            for s in sorted(first_round.scores, key=lambda x: getattr(x, 'position', 0) or 0):
+                if not s.athlete:
+                    continue
+                athletes.append({
+                    "score_id": s.id,
+                    "athlete_id": s.athlete_id,
+                    "name": (
+                        f"{(s.athlete.last_name or '').strip()} " 
+                        f"{(s.athlete.first_name or '').strip()} "
+                        f"{(s.athlete.middle_name or '').strip()} "
+                        ),
+                    "club": s.athlete.club or '',
+                    "position": getattr(s, 'position', 0) or 0,
+                })
+        categories_data.append({
+            "id": cat.id,
+            "name": cat.name,
+            "athletes": athletes
+        })
+    
+
+    return templates.TemplateResponse("kata_change.html", {
+        "request": request,
+        "categories": categories_data,
         "t_id": tournament_id
     })
 
@@ -547,6 +604,55 @@ async def view_category_bracket(
         "tournament_id": tournament_id
     })
 
+@router.get(
+    "/view/{tournament_id}/kumite/{category_id}/change",
+    response_class=HTMLResponse,
+)
+async def view_category_change(
+    request: Request,
+    category_id: int,
+    tournament_id: int,
+    t_db: AsyncSession = Depends(get_t_db),
+):
+    # 1. Категория
+    cat = await t_db.get(Category, category_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="Категория не найдена")
+
+    # 2. Матчи этой категории
+    res = await t_db.execute(
+        select(Match)
+        .where(Match.category_id == category_id)
+        .order_by(Match.round_number, Match.number)
+    )
+    matches = res.scalars().all()
+
+    # 3. Все атлеты категории → map {id: "Фамилия Имя"}
+    ath_res = await t_db.execute(
+        select(Athlete)
+        .join(DraftAssignment)
+        .where(DraftAssignment.category_id == category_id)
+    )
+    athletes_map = {
+        a.id: f"{(a.last_name or '').strip()} {(a.first_name or '').strip()}".strip()
+        for a in ath_res.scalars().all()
+    }
+
+    # 4. Группируем по раундам
+    bracket_data: dict[int, list] = {}
+    for m in matches:
+        bracket_data.setdefault(m.round_number, []).append(m.to_dict())
+
+    max_r = max(bracket_data.keys()) if bracket_data else 1
+
+    return templates.TemplateResponse("kumite_change.html", {
+        "request": request,
+        "category": cat,
+        "bracket": bracket_data,
+        "athletes": athletes_map,
+        "max_round": max_r,
+        "t_id": tournament_id,
+    })
 
 @router.get("/view/{tournament_id}/results", response_class=HTMLResponse)
 async def get_tournament_results_page(request: Request, tournament_id: int, t_db: AsyncSession = Depends(get_t_db),

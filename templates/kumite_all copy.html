@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Кумитэ</title>
+    <title>Турнирная панель: Весь поток</title>
     <style>
         :root { --aka: #dc3545; --shiro: #0d6efd; --bg: #f4f7f6; --green: #28a745; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -125,173 +125,158 @@
         }
     </style>
 </head>
-
 <body>
-    <div class="top-bar">
-        <div>
-            <h1 style="margin:0; font-size: 1.4rem;">КУМИТЭ <span style="opacity: 0.5;">(СПИСОК)</span></h1>
-        </div>
-        <div style="display: flex; gap: 10px;">
-            <a href="/view/{{ tournament_id }}" class="btn btn-outline" style="width:100px;">← ТУРНИРЫ</a>
-            <a href="/view/{{ tournament_id }}/kumite" class="btn btn-outline" style="width:100px;">← КАТЕГОРИИ</a>
-        </div>
+<div class="top-bar">
+    <div>
+        <h1 style="margin:0; font-size: 1.4rem;">КУМИТЕ <span style="opacity: 0.5;">(СПИСОК)</span></h1>
     </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="/view/{{ tournament_id }}" class="btn btn-outline" style="width:100px;">← К ТУРНИРУ</a>
+        <a href="/view/{{ tournament_id }}/kumite" class="btn btn-back" style="width:100px;">КАТЕГОРИИ</a>
+    <!-- <button class="btn btn-generate" onclick="generateAll()">⚡ Жеребьевка </button> -->
+    </div>
+</div>
 
     <div class="matches-list" id="matchesContainer">
         <!-- Сюда JS выведет ленту -->
     </div>
+</div>
 
-    <!-- Модальное окно -->
-    <div id="overlay">
-        <div class="modal">
-            <h3 id="modalTitle" style="margin-top:0;">Бой №</h3>
-            <div style="display: grid; gap: 10px;">
-                <input type="hidden" id="fieldMatchId">
-                <button class="btn btn-akalabel" id="akaLabel" style="background:var(--aka); color: white;" onclick="sendResult('aka')">ПОБЕДА АКА</button>
-                <button class="btn btn-shirolabel" id="shiroLabel" style="background:var(--shiro); color: white;" onclick="sendResult('shiro')">ПОБЕДА ШИРО</button>
-                <button class="btn btn-disabled" style="background:#eee; color:#666;" onclick="closeModal()">Отмена</button>
-            </div>
+<!-- Модальное окно -->
+<div id="overlay">
+    <div class="modal">
+        <h3 id="modalTitle" style="margin-top:0">Бой №</h3>
+        <div style="display:grid; gap:10px;">
+            <input type="hidden" id="fieldMatchId">
+            <button class="btn" id="akaLabel" style="background:var(--aka); color:white" onclick="sendResult('aka')">ПОБЕДА AKA</button>
+            <button class="btn" id="shiroLabel" style="background:var(--shiro); color:white" onclick="sendResult('shiro')">ПОБЕДА SHIRO</button>
+            <button class="btn" style="background:#eee; color:#666" onclick="closeModal()">Отмена</button>
         </div>
     </div>
+</div>
 
-    <script>
-        // 1. ИСПРАВЛЕНИЕ: Здесь должны быть реальные ID, а не строки "api" или "all"
-        // Если вы используете Jinja2, эти переменные подставляются сервером
-        const tid = "{{ tournament_id }}"; 
-        const cid = "{{ category_id }}"; // Если открыта конкретная категория
-        const tatId = "{{ tatami_number }}"; // Если открыто конкретное татами
-        let tempAkaId, tempShiroId;
+<script>
+    const tId = "{{ tournament_id }}";
+    const cId = "{{ category_id }}"; // Если открыта конкретная категория
+    const tatId = "{{ tatami_number }}"; // Если открыта конкретная категория
 
-        async function fetchMatches() {
-            try {
-                let url = '';
-                
-                console.log(tid)
-                // 2. ИСПРАВЛЕНИЕ ЛОГИКИ URL
-                // Вместо подстановки "all" вall путь, который ожидает int, 
-                // используем правильные эндпоинты.
-                if (cid) {
-                    url = `/${tid}/kumite/${cid}`;
-                } else if (tatId) {
-                    url = `/${tid}/kumite/all/${tatId}`;
-                } 
+    async function fetchMatches() {
+       
+       try {
+           // Запрашиваем специальный эндпоинт для всего турнира
+        //    const response = await fetch(`/${tId}/kumite/stream/all`)
+        let url = ''
+            if (cId) 
+                url = `/${tId}/kumite/${cId}`;
+            else
+                url =`/${tId}/kumite/all/${tatId}`;
+            const response = await fetch(url);
+           if (!response.ok) throw new Error("Ошибка сервера");
+           
+           const data = await response.json();
+           
+           renderMatches(data);
+           status.innerText = "Обновлено: " + new Date().toLocaleTimeString();
+       } catch (error) {
+           console.error("Ошибка:", error);
+           status.innerText = "Ошибка загрузки!";
+       }
+    }
 
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Ошибка сервера");
 
-                const data = await response.json();
-                renderMatches(data);
-                
-                const statusEl = document.getElementById('status');
-                if (statusEl) {
-                    statusEl.innerText = "Обновлено: " + new Date().toLocaleTimeString();
-                }
-            } catch (error) {
-                console.error("Ошибка:", error);
-                const statusEl = document.getElementById('status');
-                if (statusEl) {
-                    statusEl.innerText = "Ошибка загрузки!";
-                }
+    function renderMatches(matches) {
+    const container = document.getElementById('matchesContainer');
+    container.innerHTML = '';
+    matches.sort((a, b) => a.number - b.number).forEach(m => {
+        const isReady = m.aka_id && m.shiro_id;
+        const isFinished = m.is_finished;
+        
+        // Класс для всей карточки
+        const cardClass = isFinished ? 'finished' : (isReady ? 'active' : '');
+        
+        // ОПРЕДЕЛЕНИЕ ПОБЕДИТЕЛЯ (по полю winner_id)
+        let akaClass = "";
+        let shiroClass = "";
+
+        if (isFinished && m.winner_id) {
+            if (m.winner_id === m.aka_id) {
+                akaClass = "winner";
+                shiroClass = "loser";
+            } else if (m.winner_id === m.shiro_id) {
+                shiroClass = "winner";
+                akaClass = "loser";
             }
         }
 
-        function renderMatches(matches) {
-            const container = document.getElementById('matchesContainer');
-            container.innerHTML = '';
-
-            matches.sort((a, b) => a.number - b.number).forEach(m => {
-                const isReady = m.aka_id && m.shiro_id;
-                const isFinished = m.is_finished;
-
-                const cardClass = isFinished ? 'finished' : (isReady ? 'active' : '');
-
-                let akaClass = "";
-                let shiroClass = "";
-
-                if (isFinished && m.winner_id) {
-                    if (m.winner_id == m.aka_id) {
-                        akaClass = "winner";
-                        shiroClass = "loser";
-                    } else if (m.winner_id == m.shiro_id) {
-                        shiroClass = "winner";
-                        akaClass = "loser";
-                    }
-                }
-
-                const akaName = m.aka ? `${m.aka.first_name || ''} ${m.aka.last_name || ''}`.trim() : '---';
-                const shiroName = m.shiro ? `${m.shiro.first_name || ''} ${m.shiro.last_name || ''}`.trim() : '---';
-
-                container.innerHTML += `
-                    <div class="m-card ${cardClass} ${m.is_repechage ? 'repechage' : ''}">
-                        <div class="m-badge">№ ${m.number}</div>
-                        <div class="m-meta">${m.category ? m.category.name : 'Без категории'}</div>
-
-                        <div class="vs-container">
-                            <div class="participant ${akaClass}">
-                                <div class="aka" style="font-size:0.95rem; font-weight:900;">${akaName}</div>
-                            </div>
-                            <div class="vs-label">VS</div>
-                            <div class="participant ${shiroClass}">
-                                <div class="shiro" style="font-size:0.95rem; font-weight:900;">${shiroName}</div>
-                            </div>
-                        </div>
-
-                        ${(!isFinished && isReady) ?
-                            // 3. ИСПРАВЛЕНИЕ: Передаем shiro_id в openModal, иначе sendResult не сможет определить победителя
-                            `<button class="btn btn-primary" onclick="openModal(${m.id}, ${m.number}, ${m.aka_id}, ${m.shiro_id})">Ввести результат</button>` :
-                            `<button class="btn btn-disabled" disabled>${isFinished ? 'РЕЗУЛЬТАТ ЗАФИКСИРОВАН' : 'ОЖИДАНИЕ ПАРЫ'}</button>`
-                        }
+                        // <div style="font-weight:bold">${m.aka_id || '---'}</div>
+        container.innerHTML += `
+            <div class="m-card ${cardClass} ${m.is_repechage ? 'repechage' : ''}">
+                <div class="m-badge">№ ${m.number}</div>
+                <div class="m-meta">${m.category.name}</div>
+                
+                <div class="vs-container">
+                    <!-- Участник AKA -->
+                    <div class="participant ${akaClass}">
+                        <div class="aka" style="font-size:0.95rem; font-weight:900;">${m.aka ? m.aka.first_name : '---'} ${m.aka ? m.aka.last_name : '---'} (${m.aka ? m.aka.club : '---'})</div>
                     </div>
-                `;
-            });
-        }
+                    
+                    <div class="vs-label">VS</div>
+                    
+                    <!-- Участник SHIRO -->
+                    <div class="participant ${shiroClass}">
+                        <div class="shiro" style="font-size:0.95rem; font-weight:900;">${m.shiro ? m.shiro.first_name : '---'} ${m.shiro ? m.shiro.last_name : '---'} (${m.shiro ? m.shiro.club : '---'})</div>
+                    </div>
+                </div>
 
-        function openModal(id, num, akaId, shiroId) {
-            document.getElementById('fieldMatchId').value = id;
-            document.getElementById('modalTitle').innerText = "Бой № " + num;
-            
-            // Сохраняем ID во временные переменные
-            tempAkaId = akaId;
-            tempShiroId = shiroId; // Теперь получаем корректно
-            
-            document.getElementById('overlay').style.display = 'flex';
-        }
+                ${(!isFinished && isReady) ? 
+                    `<button class="btn btn-primary" onclick="openModal(${m.id}, ${m.number_for_tatami}, ${m.aka.id}, ${m.shiro.id},'${m.aka ? m.aka.first_name : '---'} ${m.aka ? m.aka.last_name : '---'} (${m.aka ? m.aka.club : '---'})', '${m.shiro ? m.shiro.first_name : '---'} ${m.shiro ? m.shiro.last_name : '---'} (${m.shiro ? m.shiro.club : '---'})')">ВВЕСТИ РЕЗУЛЬТАТ</button>` : 
+                    `<button class="btn btn-disabled" disabled>${isFinished ? 'РЕЗУЛЬТАТ ЗАФИКСИРОВАН' : 'ОЖИДАНИЕ ПАРЫ'}</button>`}
+            </div>
+        `;
+    });
+}
 
-        function closeModal() {
-            document.getElementById('overlay').style.display = 'none';
-        }
+    // Логика управления результатами
+    let tempAkaId, tempShiroId;
+    function openModal(id, num, akaId, akaName, shiroName) {
+        document.getElementById('fieldMatchId').innerText = id; 
+        document.getElementById('modalTitle').innerText = "Бой №" + num;
+        document.getElementById('akaLabel').dataset.id = akaId;
+        document.getElementById('shiroLabel').dataset.id = shiroId;
+        document.getElementById('shiroLabel').innerText = shiroName;
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('akaLabel').value = akaId
+    }
 
-        async function sendResult(winner) {
-            const mId = document.getElementById('fieldMatchId').value;
-            
-            const payload = {
-                winner_id: winner === 'aka' ? tempAkaId : tempShiroId,
-                is_finished: true
-            };
+    function closeModal() { document.getElementById('overlay').style.display = 'none'; }
 
-            try {
-                const res = await fetch(`/${tid}/kumite/match/${mId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+    async function sendResult(winner) {
+        const mId = document.getElementById('fieldMatchId').innerText;
+        const payload = {
+            winner_id: winner === 'aka' ? tempAkaId.id : tempShiroId.id,
+            is_finished: true
+        };
 
-                if (res.ok) {
-                    closeModal();
-                    fetchMatches();
-                }
-            } catch (e) {
-                console.error("Ошибка сети:", e);
-            }
-        }
+        const res = await fetch(`/${tId}/kumite/match/${mId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
 
-        async function generateAll() {
-            if (!confirm("Внимание! Это удалит текущие сетки и создаст новые. Продолжить?")) return;
-            await fetch(`/api/kumite/generate-all`, { method: 'POST' });
+        if (res.ok) {
+            closeModal();
             fetchMatches();
         }
+    }
 
-        window.onload = fetchMatches;
-    </script>
+    async function generateAll() {
+        if(!confirm("Внимание! Это удалит текущие сетки и создаст новые. Продолжить?")) return;
+        await fetch(`/${tId}/kumite/generate-all`, { method: 'POST' });
+        fetchMatches();
+    }
+
+    // Автозапуск
+    window.onload = fetchMatches;
+</script>
 </body>
 </html>

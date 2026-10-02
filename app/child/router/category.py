@@ -9,6 +9,7 @@ from app.child.models.round import Round
 from app.child.models.score import Score
 from app.child.schemas.category import CategoryRead
 from app.child.schemas.draft import DraftAdd
+from app.child.schemas.score import OrderUpdate
 from app.child.services.logic import find_category_id
 from app.child.services.service import generate_all_kumite_horizontal
 from app.database import get_db, get_t_db
@@ -16,7 +17,7 @@ from app.tournament_main.model import Tournament
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import  selectinload
 from fastapi import Depends, APIRouter
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from fastapi.responses import RedirectResponse
 
 DBSession = Annotated[AsyncSession, Depends(get_t_db)]
@@ -82,12 +83,13 @@ async def final_draft_assignment(
         t_db.add(new_round)
         await t_db.flush()
 
-        for d in assignments:
+        for idx, d in enumerate(assignments, 1):
             # Создаем Score с привязкой либо к атлету, либо к команде
             new_score = Score(
                 round_id=new_round.id,
                 athlete_id=d.athlete_id, # Будет None, если это команда
-                team_id=d.team_id        # Будет None, если это личник
+                team_id=d.team_id,     # Будет None, если это личник
+                position=idx       
             )
             t_db.add(new_score)
 
@@ -132,3 +134,26 @@ async def add_draft_category(
     t_db.add(new_draft)
     await t_db.commit()
     return {"status": "updated"}
+
+@router.put("/{category_id}/order")
+async def update_category_order(
+    category_id: int,
+    data: OrderUpdate,
+    t_db: DBSession,
+):
+    if not data.order:
+        return {"status": "ok", "updated": 0}
+    
+    # Обновляем position у каждой связи
+    for item in data.order:
+        await t_db.execute(
+            update(Score)
+            .where(
+                Score.id == item.score_id,
+                Score.round_id.in_(select(Round.id).where(Round.category_id == category_id))
+            )
+            .values(position=item.position)
+        )
+    
+    await t_db.commit()
+    return {"status": "ok", "updated": len(data.order)}

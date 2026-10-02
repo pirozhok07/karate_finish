@@ -42,3 +42,12 @@ class WinnerResponse(BaseModel):
     athlete_id: int
     name: str
     points_scored: int # Сумма набранных баллов (для круговой системы)
+
+class SlotData(BaseModel):
+    matchId: int
+    slot: int               # 1 (aka) или 2 (shiro)
+    athleteId: Optional[int] = None
+    
+class MatchSwap(BaseModel):
+    source: SlotData
+    target: SlotData

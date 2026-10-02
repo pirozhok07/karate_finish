@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_t_db # Ваша зависимость БД
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
-from app.child.schemas.match import MatchResponse, MatchResultUpdate, TatamiNumberCreate, TatamiNumberCreateResponce
+from app.child.schemas.match import MatchResponse, MatchResultUpdate, MatchSwap, TatamiNumberCreate, TatamiNumberCreateResponce
 from fastapi.responses import RedirectResponse
 
 
@@ -336,3 +336,40 @@ async def get_results(category_id: int, t_db: AsyncSession = Depends(get_t_db)):
     # Для красоты можно подтянуть имена атлетов из основной БД
     return winners
 
+@router.put("/matches/swap")
+async def swap_match_slots(
+    tournament_id: int,
+    data: MatchSwap,
+    t_db: AsyncSession = Depends(get_t_db),
+):
+    # Достаём оба матча
+    src = (await t_db.execute(
+        select(Match).where(Match.id == data.source.matchId)
+    )).scalar_one_or_none()
+
+    dst = (await t_db.execute(
+        select(Match).where(Match.id == data.target.matchId)
+    )).scalar_one_or_none()
+
+    if not src or not dst:
+        raise HTTPException(404, "Матч не найден")
+
+    # Проверки
+    if src.round_number != dst.round_number:
+        raise HTTPException(400, "Разные раунды")
+
+    if src.is_finished or dst.is_finished:
+        raise HTTPException(400, "Матч уже сыгран")
+
+    if src.winner_id or dst.winner_id:
+        raise HTTPException(400, "Есть победитель")
+
+    # Обмен
+    src_field = "aka_id" if data.source.slot == 1 else "shiro_id"
+    dst_field = "aka_id" if data.target.slot == 1 else "shiro_id"
+
+    setattr(src, src_field, data.target.athleteId)
+    setattr(dst, dst_field, data.source.athleteId)
+
+    await t_db.commit()
+    return {"status": "ok"}

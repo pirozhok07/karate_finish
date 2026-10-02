@@ -10,6 +10,7 @@ class Score(TournamentBase):
     athlete_id: Mapped[Optional[int]] = mapped_column(ForeignKey("athletes.id"), nullable=True)
     team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id"), nullable=True)
     
+    position: Mapped[int] 
     # Оценки (от 5 до 7 судей)
     performance_kata: Mapped[str | None] = mapped_column(String(100), nullable=True)
     s1: Mapped[float] = mapped_column(default=0.0)

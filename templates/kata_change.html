@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Ката — порядок участников</title>
+    <style>
+        .category-block {
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .athletes-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            min-height: 40px;
+        }
+        .athlete-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: move;
+        }
+        .athlete-item.dragging {
+            opacity: 0.5;
+            background: #e3f2fd;
+        }
+        .drag-handle {
+            cursor: grab;
+            color: #999;
+            font-size: 1.2em;
+            user-select: none;
+        }
+        .athlete-name {
+            flex: 1;
+            font-weight: 500;
+        }
+        .athlete-club {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .btn-save-order {
+            margin-top: 10px;
+            padding: 6px 16px;
+            background: #198754;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Порядок участников</h1>
+
+    <!-- ★ ВОТ ЭТОТ КОНТЕЙНЕР -->
+    <div id="categories-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        const categories = {{ categories | tojson | safe }};
+        const tId = {{ t_id }};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAllCategories();
+        });
+
+        function renderAllCategories() {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+
+            categories.forEach(cat => {
+                const block = document.createElement('div');
+                block.className = 'category-block';
+                block.dataset.categoryId = cat.id;
+
+                const title = document.createElement('h3');
+                title.textContent = cat.name;
+                block.appendChild(title);
+
+                const list = document.createElement('ul');
+                list.className = 'athletes-list';
+                list.dataset.categoryId = cat.id;
+
+                (cat.athletes || []).forEach(ath => {
+                    const li = document.createElement('li');
+                    li.className = 'athlete-item';
+                    li.dataset.scoreId = ath.score_id;
+                    li.dataset.athleteId = ath.athlete_id;
+
+                    li.innerHTML = `
+                        <span class="drag-handle">☰</span>
+                        <span class="athlete-name">${ath.name}</span>
+                        <span class="athlete-club">${ath.club || ''}</span>
+                    `;
+                    list.appendChild(li);
+                });
+
+                block.appendChild(list);
+
+                const btn = document.createElement('button');
+                btn.className = 'btn-save-order';
+                btn.dataset.categoryId = cat.id;
+                btn.textContent = 'Сохранить порядок';
+                btn.onclick = () => saveCategoryOrder(cat.id);
+                block.appendChild(btn);
+
+                container.appendChild(block);
+
+                new Sortable(list, {
+                    animation: 150,
+                    handle: '.drag-handle',
+                    ghostClass: 'dragging',
+                    group: {
+                        name: 'athletes-' + cat.id,
+                        pull: false,
+                        put: false
+                    }
+                });
+            });
+        }
+
+        async function saveCategoryOrder(categoryId) {
+            const list = document.querySelector(
+                `.athletes-list[data-category-id="${categoryId}"]`
+            );
+            const items = list.querySelectorAll('.athlete-item');
+
+
+            const order = Array.from(items).map((item, index) => ({
+                score_id: Number(item.dataset.scoreId),
+                position: index + 1
+            }));
+
+            const btn = document.querySelector(
+                `.btn-save-order[data-category-id="${categoryId}"]`
+            );
+            btn.disabled = true;
+            btn.textContent = 'Сохранение...';
+
+            try {
+                const response = await fetch(
+                    `/${tId}/category/${categoryId}/order`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order })
+                    }
+                );
+                if (!response.ok) throw new Error('Ошибка сохранения');
+
+                btn.textContent = '✓ Сохранено';
+                setTimeout(() => {
+                    btn.textContent = 'Сохранить порядок';
+                    btn.disabled = false;
+                }, 1500);
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось сохранить: ' + error.message);
+                btn.textContent = 'Сохранить порядок';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
