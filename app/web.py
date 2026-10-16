@@ -344,6 +344,24 @@ async def kata_page(
         .where(Category.discipline == "kata") 
     )
     categories = result.scalars().all()
+    to_delete = []
+
+    for category in categories:
+
+        for round_obj in category.rounds:
+            filtered_scores = []
+            for score in round_obj.scores:
+                if score.athlete is not None:
+                    if score.athlete.is_present:
+                        filtered_scores.append(score)
+                elif score.team is not None:
+                    if score.team.is_present:
+                        filtered_scores.append(score)
+            round_obj.scores = filtered_scores
+            if not filtered_scores:
+                to_delete.append(category)
+    for cat in to_delete:
+        categories.remove(cat)
 
     return templates.TemplateResponse("kata.html", {
         "request": request,

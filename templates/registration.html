@@ -283,22 +283,22 @@
     })
 
     let currentFilter = 'all';
-    // async function toggleTeamPresence(tId, athleteId, checkbox) {
-    //     const isPresent = checkbox.checked;
-    //     const athleteRow = document.getElementById(`row-${athleteId}`);
+    async function toggleTeamPresence(tId, athleteId, checkbox) {
+        const isPresent = checkbox.checked;
+        const athleteRow = document.getElementById(`row-${athleteId}`);
         
-    //     try {
-    //         const res = await fetch(`/${tId}/athletes/${athleteId}`, {
-    //             method: 'PUT',
-    //             headers: { 'Content-Type': 'application/json' },
-    //             body: JSON.stringify({ is_present: isPresent })
-    //         });
-    //     }catch (e) { 
-    //         console.error("Ошибка регистрации:", e); 
-    //         checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
-    //         alert("Не удалось сохранить изменения");
-    //     }
-    // }
+        try {
+            const res = await fetch(`/${tId}/athletes/${athleteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_present: isPresent })
+            });
+        }catch (e) { 
+            console.error("Ошибка регистрации:", e); 
+            checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
+            alert("Не удалось сохранить изменения");
+        }
+    }
 
     async function togglePresence(tId, athleteId, checkbox) {
         const isPresent = checkbox.checked;

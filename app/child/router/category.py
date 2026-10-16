@@ -43,7 +43,7 @@ async def test_draft_assignment(
     total = await run_draft_assignment_logic(tournament_id, main_db, t_db)
     return {"status": "draft_created", "total_processed": total}
 
-@router.post("/final-assign", response_class=RedirectResponse)
+@router.post("/final-assign")
 async def final_draft_assignment(
     tournament_id: int,
     t_db: DBSession
@@ -64,16 +64,17 @@ async def final_draft_assignment(
     drafts = result.scalars().all()
 
     # Фильтруем только ПРИСУТСТВУЮЩИХ (атлет или вся команда)
-    active_drafts = []
-    for d in drafts:
-        if d.athlete and d.athlete.is_present:
-            active_drafts.append(d)
-        elif d.team and d.team.is_present:
-            active_drafts.append(d)
+    # active_drafts = []
+    # for d in drafts:
+    #     if d.athlete and d.athlete.is_present:
+    #         active_drafts.append(d)
+    #     elif d.team and d.team.is_present:
+    #         active_drafts.append(d)
 
     # Группируем по категориям
     by_category = {}
-    for d in active_drafts:
+    # for d in active_drafts:
+    for d in drafts:
         by_category.setdefault(d.category_id, []).append(d)
 
     for cat_id, assignments in by_category.items():
@@ -94,7 +95,8 @@ async def final_draft_assignment(
             t_db.add(new_score)
 
     await t_db.commit()
-    return RedirectResponse(url=f"/view/{tournament_id}/kata", status_code=303)
+    return {"status": "created"}
+    # return RedirectResponse(url=f"/view/{tournament_id}/kata", status_code=303)
 
 @router.patch("/draft/{draft_id}")
 async def update_draft_category(

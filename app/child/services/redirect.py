@@ -76,6 +76,7 @@ async def promote_to_next_round(t_db: AsyncSession, round_id: int):
     cat_id = curr_rnd.category_id
     current_round_num = curr_rnd.round_number
 
+    
     # 1. Получаем изначальное количество участников
     count_res = await t_db.execute(
         select(func.count(Score.id)).join(Round).where(Round.category_id == cat_id, Round.round_number == 1)
