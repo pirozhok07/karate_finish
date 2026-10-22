@@ -1,8 +1,10 @@
 from http.client import HTTPException
 from typing import AsyncGenerator
+from app.core.secury import get_password_hash
 from app.tournament_main.model import CategoryKataTemplate, CategoryTemplate, Tournament
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, selectinload
+from app.child.models.users import User
 from app.child.models.athlete import Athlete
 from app.child.models.category import Category, Kata, CategoryKata
 from app.child.models.score import Score
@@ -49,7 +51,13 @@ async def get_db()-> AsyncGenerator[AsyncSession, None]:
 
 
 # Функция для инициализации новой БД турнира
-async def create_tournament_db(slug: str, main_db: AsyncSession, template_ids: list[int]):
+async def create_tournament_db(
+        slug: str, 
+        main_db: AsyncSession, 
+        template_ids: list[int],
+        admin_password: str,
+        secretary_password: str
+):
     db_path = f"tournament_{slug}.db"
     new_db_url = f"sqlite+aiosqlite:///{db_path}"
     
@@ -71,9 +79,26 @@ async def create_tournament_db(slug: str, main_db: AsyncSession, template_ids: l
     selected_templates = result.scalars().all()
     
     # 3. Переносим их в новую БД
-    if selected_templates:
-        t_session_factory = async_sessionmaker(t_engine, expire_on_commit=False)
-        async with t_session_factory() as t_session:
+    
+    t_session_factory = async_sessionmaker(t_engine, expire_on_commit=False)
+    async with t_session_factory() as t_session:
+        new_admin = User(
+            login="admin",
+            hashed_password=get_password_hash(admin_password),
+            is_admin=True,
+            role="admin"
+        )
+        t_session.add(new_admin)
+
+        new_secretary = User(
+            login="secretary",
+            hashed_password=get_password_hash(secretary_password),
+            is_admin=False,
+            role="secretary"
+        )
+        t_session.add(new_secretary)
+        
+        if selected_templates:    
             created_katas_cache = {}
             for tmpl in selected_templates:
                 new_cat = Category(

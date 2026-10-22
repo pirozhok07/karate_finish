@@ -11,6 +11,7 @@ from app.child.models.score import Score
 from app.child.models.team import Team
 from app.child.models.winner import Winner
 from app.child.services.service import fill_tournament_summary
+from app.core.dependencies import require_admin
 from app.database import get_db, get_t_db
 from app.tournament_main.model import Tournament
 from fastapi import APIRouter, Request, Depends, Response
@@ -29,7 +30,7 @@ from app.child.services.for_kumite import TEMPLATES
 
 # Импортируй свои модели и зависимость БД
 
-router = APIRouter(prefix="/view/{tournament_id}", tags=["print"])
+router = APIRouter(prefix="/view/{tournament_id}", tags=["print"], dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory="templates")
 
 @router.get("/print")

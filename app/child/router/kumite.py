@@ -6,7 +6,7 @@ from app.child.models.draft import DraftAssignment
 from app.child.models.match import Match
 from app.child.models.winner import Winner
 from app.child.services.service import  generate_all_kumite_horizontal,  generate_full_bracket, generate_kumite_bracket, generate_next_round, get_category_winners, rangeCategoriesForTatami, updateMatchesNumbers
-from app.web import kumite_page
+from app.core.dependencies import require_admin
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.child.schemas.match import MatchResponse, MatchResultUpdate, MatchSwap,
 from fastapi.responses import RedirectResponse
 
 
-router = APIRouter(prefix="/{tournament_id}/kumite", tags=["Kumite"])
+router = APIRouter(prefix="/{tournament_id}/kumite", tags=["Kumite"], dependencies=[Depends(require_admin)])
 
 @router.get("/take-categories-kumite", response_model=List[TatamiNumberCreateResponce])
 async def take_categories_kumite(tournament_id: int, t_db: AsyncSession = Depends(get_t_db)):

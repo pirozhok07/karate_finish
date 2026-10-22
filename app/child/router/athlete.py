@@ -7,6 +7,7 @@ from app.child.schemas.athlete import AthleteBase, AthleteCreate, AthleteGet, At
 from app.child.models.athlete import Athlete
 from app.child.services.excel import parse_athletes_excel
 from app.child.services.logic import find_category_id, sync_team_presence
+from app.core.dependencies import require_admin
 from app.database import create_tournament_db, get_db, get_t_db, get_tournament_session
 from app.tournament_main.model import Tournament
 from app.tournament_main.schema import TournamentCreate, TournamentRead
@@ -22,7 +23,7 @@ from fastapi.responses import RedirectResponse
 DBSession = Annotated[AsyncSession, Depends(get_t_db)]
 UpFile = Annotated[UploadFile, File(...)]
 
-router = APIRouter(prefix="/{tournament_id}/athletes", tags=["Athlete"])
+router = APIRouter(prefix="/{tournament_id}/athletes", tags=["Athlete"], dependencies=[Depends(require_admin)])
     
 @router.get(
     "/{athlete_id}",

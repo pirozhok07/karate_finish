@@ -13,6 +13,8 @@ class TournamentBase(BaseModel):
 # Схема для создания (то, что присылает клиент)
 class TournamentCreate(TournamentBase):
     template_ids: list[int] 
+    admin_password: str
+    secretary_password: str
     pass
 
 # Схема для ответа (то, что возвращает API клиенту)

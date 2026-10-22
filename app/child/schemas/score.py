@@ -17,3 +17,4 @@ class OrderItem(BaseModel):
 
 class OrderUpdate(BaseModel):
     order: List[OrderItem]
+    canselled_ids: Optional[List[int]] = []

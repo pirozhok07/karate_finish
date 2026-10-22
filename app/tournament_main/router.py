@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Annotated
-from app.database import create_tournament_db, get_db
+from app.database import create_tournament_db, get_db, get_t_db
 from app.tournament_main.model import CategoryTemplate, Tournament
 from app.tournament_main.schema import CategoryTemplateRead, TournamentCreate, TournamentRead
 from fastapi import APIRouter
@@ -50,6 +50,8 @@ async def create_tournament(
     await db.commit()
     await db.refresh(new_tournament)
     
+
+
     return new_tournament
 
 async def add_templates(db: DBSession) -> None:

@@ -12,6 +12,7 @@ from app.child.schemas.draft import DraftAdd
 from app.child.schemas.score import OrderUpdate
 from app.child.services.logic import find_category_id
 from app.child.services.service import generate_all_kumite_horizontal
+from app.core.dependencies import require_admin
 from app.database import get_db, get_t_db
 from app.tournament_main.model import Tournament
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,7 @@ from fastapi.responses import RedirectResponse
 DBSession = Annotated[AsyncSession, Depends(get_t_db)]
 DBSession_main = Annotated[AsyncSession, Depends(get_db)]
 
-router = APIRouter(prefix="/{tournament_id}/category", tags=["Category"])
+router = APIRouter(prefix="/{tournament_id}/category", tags=["Category"], dependencies=[Depends(require_admin)])
 
 @router.get(
     "/", 
@@ -143,6 +144,14 @@ async def update_category_order(
     data: OrderUpdate,
     t_db: DBSession,
 ):
+    if data.canselled_ids:
+        delete_stmt = ( delete(Score)
+                       .where(
+                           Score.id.in_(data.canselled_ids)
+                       )
+                       )
+        await t_db.execute(delete_stmt)
+
     if not data.order:
         return {"status": "ok", "updated": 0}
     

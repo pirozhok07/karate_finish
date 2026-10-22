@@ -1,12 +1,11 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from app import web
-from app import print
+from app import web, print, show, secretary
 from app.child.models.athlete import Athlete
 from app.tournament_main import router
 from fastapi.templating import Jinja2Templates
-from app.child.router import athlete,  category, kata, kumite
+from app.child.router import athlete,  category, kata, kumite, auth
 from app.tournament_main.init_db import setup_initial_templates
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import HTMLResponse
@@ -48,9 +47,12 @@ app = FastAPI(
 
 
 app.include_router(router.router)
+app.include_router(auth.router)
 app.include_router(athlete.router)
 app.include_router(category.router)
 app.include_router(kata.router)
 app.include_router(kumite.router)
+app.include_router(show.router)
+app.include_router(secretary.router)
 app.include_router(web.router)
 app.include_router(print.router)

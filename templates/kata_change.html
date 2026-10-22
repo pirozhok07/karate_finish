@@ -31,6 +31,12 @@
             opacity: 0.5;
             background: #e3f2fd;
         }
+        .athlete-item.not-present {
+            background-color: #cac6c6; 
+        }
+        .athlete-item.is-cancelled {
+            background-color: #fa9898; !important
+        }
         .drag-handle {
             cursor: grab;
             color: #999;
@@ -53,6 +59,12 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+        }
+        .cancel-cross {
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+
         }
     </style>
 </head>
@@ -82,11 +94,21 @@
 
                 const title = document.createElement('h3');
                 title.textContent = cat.name;
+                title.style.cursor = 'pointer';
                 block.appendChild(title);
 
                 const list = document.createElement('ul');
                 list.className = 'athletes-list';
                 list.dataset.categoryId = cat.id;
+
+                list.style.display = 'none';
+                title.addEventListener('click', () => {
+                    if (list.style.display === 'none') {
+                        list.style.display = 'block';
+                    }else {
+                        list.style.display = 'none';
+                    }
+                });
 
                 (cat.athletes || []).forEach(ath => {
                     const li = document.createElement('li');
@@ -98,7 +120,15 @@
                         <span class="drag-handle">☰</span>
                         <span class="athlete-name">${ath.name}</span>
                         <span class="athlete-club">${ath.club || ''}</span>
+                        <span class="cancel-cross">x</span>
                     `;
+                    if (!ath.is_present) li.classList.add('not-present');
+                    const cross = li.querySelector('.cancel-cross');
+                    cross.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        li.classList.toggle('is-cancelled')
+                    });
+
                     list.appendChild(li);
                 });
 
@@ -138,6 +168,10 @@
                 position: index + 1
             }));
 
+            const canselledItems = list.querySelectorAll('.athlete-item.is-cancelled');
+            const canselled_ids = Array.from(canselledItems).map(item => Number(item.dataset.scoreId));
+            console.log(canselled_ids)
+
             const btn = document.querySelector(
                 `.btn-save-order[data-category-id="${categoryId}"]`
             );
@@ -150,7 +184,10 @@
                     {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ order })
+                        body: JSON.stringify({ 
+                            order: order,
+                            canselled_ids: canselled_ids
+                        })
                     }
                 );
                 if (!response.ok) throw new Error('Ошибка сохранения');

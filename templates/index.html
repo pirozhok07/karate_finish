@@ -111,6 +111,15 @@
         .btn-sm { padding: 8px 14px; font-size: 0.75rem; }
         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
+        .admin-panel {
+            text-decoration: none;
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px; 
+            background:#d0d1d3;
+            color: black;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -158,6 +167,14 @@
                     <div>
                         <label>Описание</label>
                         <input type="text" name="description" placeholder="Краткая информация">
+                    </div>
+                    <div>
+                        <label>Пароль Админа</label>
+                        <input type="password" name="admin_password" required>
+                    </div>
+                    <div>
+                        <label>Пароль секретаря</label>
+                        <input type="password" name="secretary_password" required>
                     </div>
                 </div>
         
@@ -238,13 +255,14 @@
                 <th width="60">ID</th>
                 <th>Название</th>
                 <th>Дата</th>
+                <th>Панель администратора</th>
             </tr>
         </thead>
         <!-- Замените блок <tbody> в вашем основном файле на этот -->
 <tbody>
     {% for t in tournaments %}
     <!-- Клик по всей строке ведет на дашборд конкретного турнира -->
-    <tr onclick="window.location.href='/view/{{ t.id }}'" style="cursor: pointer;">
+    <tr onclick="window.location.href='/view/{{ t.id }}/kata-show'" style="cursor: pointer;">
         <td style="color: var(--gray); font-weight: bold;">#{{ t.id }}</td>
         <td>
             <div style="font-weight: bold; font-size: 1rem; color: var(--dark);">{{ t.title }}</div>
@@ -254,6 +272,9 @@
             <span style="background: #edf2f7; padding: 4px 8px; border-radius: 5px; font-size: 0.85rem;">
                 {{ t.event_date }}
             </span>
+        </td>
+        <td>
+            <a href="/{{ t.id }}/auth" class="admin-panel">Admin</a>
         </td>
     </tr>
     {% else %}

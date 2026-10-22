@@ -13,6 +13,7 @@ from app.child.models.winner import Winner
 from app.child.services.logic import find_category_id
 from app.child.services.redirect import promote_to_next_round
 from app.child.services.service import get_category_winners
+from app.core.dependencies import get_current_user_optional, require_admin
 from app.tournament_main.model import CategoryTemplate, Tournament
 from app.tournament_main.schema import TournamentCreate
 from fastapi import APIRouter, Request, Depends, Form
@@ -25,113 +26,11 @@ from sqlalchemy import delete, select, asc, desc, func, extract, update
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
-router = APIRouter(include_in_schema=False) # Скрываем из Swagger (docs)
+router = APIRouter(include_in_schema=False, dependencies=[Depends(require_admin)]) # Скрываем из Swagger (docs)
 templates = Jinja2Templates(directory="templates")
 
-@router.get("/", response_class=HTMLResponse)
-async def index_page(request: Request, db: AsyncSession = Depends(get_db)):
-    # Загружаем турниры
-    t_res = await db.execute(select(Tournament))
-    tournaments = t_res.scalars().all()
-    
-    # Загружаем шаблоны для формы создания
-    c_res = await db.execute(select(CategoryTemplate))
-    templates_list = c_res.scalars().all()
-    
-    return templates.TemplateResponse("index.html", {
-        "request": request, 
-        "tournaments": tournaments,
-        "templates": templates_list
-    })
-
-@router.get("/view/{tournament_id}", response_class=HTMLResponse)
-async def index_page(
-    request: Request, 
-    tournament_id: int, 
-    t_db: AsyncSession = Depends(get_t_db),
-    main_db: AsyncSession = Depends(get_db)):
-
-    # Загружаем турнир
-    tournament = await main_db.get(Tournament, tournament_id)
-    
-    result = await t_db.execute(select(Category))
-    categories = result.scalars().all()
-
-    # Считаем количество записей в таблице Athlete для конкретного турнира
-    result = await t_db.execute(
-        select(func.count(Athlete.id)).where(Athlete.is_present == True)
-    )
-    present_count = result.scalar() or 0
-
-    # Считаем количество записей в таблице Athlete для конкретного турнира
-    result = await t_db.execute(
-        select(func.count(Athlete.id))
-    )
-    total_athletes = result.scalar() or 0
-
-    # Считаем количество записей в таблице Category для конкретного турнира
-    result = await t_db.execute(
-        select(func.count(Category.id)))
-    total_clubs = result.scalar() or 0
-
-    return templates.TemplateResponse("tournament.html", {
-        "request": request, 
-        "tournament": tournament,
-        "athletes_count": total_athletes,  # Общее кол-во участников
-        "present_count": present_count, 
-        "clubs_count": total_clubs,        # Кол-во уникальных клубов
-        "completion_rate": 50,
-        "categories": categories
-    })
-
-
 # Вспомогательная функция для сборки схемы из формы
-async def tournament_form_data(
-    title: str = Form(...),
-    type: str = Form(...),
-    event_date: date = Form(...),
-    description: str = Form(""),
-    judge: str = Form(""),
-    secretary: str = Form(""),
-    template_ids: list[int] = Form([])
-):
-    return TournamentCreate(
-        title=title,
-        type=type,
-        event_date=event_date,
-        description=description,
-        judge=judge,
-        secretary=secretary,
-        template_ids=template_ids
-    )
 
-# Обработка формы создания турнира
-@router.post("/tournaments/create-web")
-async def create_tournament_web(
-    data: TournamentCreate = Depends(tournament_form_data),
-    db: AsyncSession = Depends(get_db)
-):
-    # Генерация слага для названия БД
-    slug = re.sub(r'\W+', '_', data.title).lower()
-    
-    # Создаем БД и копируем категории (используем данные из схемы)
-    new_db_url = await create_tournament_db(slug, db, data.template_ids)
-    
-    # Создаем запись в основной БД
-    new_tournament = Tournament(
-        title=data.title, 
-        type=data.type,
-        description=data.description,
-        event_date=data.event_date, 
-        db_path=new_db_url,
-        judge=data.judge,        # Теперь сохраняем и судей
-        secretary=data.secretary
-    )
-    
-    db.add(new_tournament)
-    await db.commit()
-    
-    return RedirectResponse(url="/", status_code=303)
 
 @router.get("/view/{tournament_id}/athlete")
 async def view_tournament(
@@ -225,149 +124,6 @@ async def view_tournament(
         "age_categories": ["8-9", "10-11", "12-13", "14-15", "16-17", "18+"]
     })
 
-@router.get("/view/{tournament_id}/categories", response_class=HTMLResponse)
-async def view_categories(
-    request: Request, 
-    tournament_id: int, 
-    t_db: AsyncSession = Depends(get_t_db),
-    main_db: AsyncSession = Depends(get_db),
-):
-    # # 1. Проверка и авто-распределение
-    # check_draft = await t_db.execute(select(DraftAssignment).limit(1))
-    # if not check_draft.scalar_one_or_none():
-    #     await run_draft_assignment_logic(tournament_id, main_db, t_db)
-    #     await t_db.commit() 
-
-    # 2. Загружаем категории с полной подгрузкой атлетов и команд
-    result = await t_db.execute(
-        select(Category).options(
-            selectinload(Category.draft_assignments).options(
-                selectinload(DraftAssignment.athlete),
-                selectinload(DraftAssignment.team).selectinload(Team.members)
-            )
-        )
-    )
-    # .unique() важен при использовании нескольких selectinload
-    categories = result.scalars().all()
-    categories_with_discipline = defaultdict(list)
-
-    # 3. СОРТИРОВКА В PYTHON (решает проблему с None в шаблоне)
-    for cat in categories:
-        cat.draft_assignments.sort(
-            key=lambda d: (
-                # Сначала проверяем атлета, если его нет — проверяем команду
-                (d.athlete.is_present if d.athlete else (d.team.is_present if d.team else False))
-            ),
-            reverse=True
-        )
-        # подсчет человек явившихся
-        count_present = 0
-        for it in cat.draft_assignments:
-            person = it.athlete if it.athlete else it.team
-            if person.is_present:
-                count_present +=1
-        data = {
-            "category": cat, 
-            "count_present":count_present
-        }
-        if cat.gender == "unisex":
-            discipline = "group"
-        else:
-            discipline = cat.discipline
-        categories_with_discipline[discipline].append(data)
-
-    # 4. Нераспределенные
-    unassigned_res = await t_db.execute(
-        select(DraftAssignment)
-        .where(DraftAssignment.category_id == None)
-        .options(selectinload(DraftAssignment.athlete))
-    )
-    unassigned = unassigned_res.scalars().all()
-    print(categories_with_discipline)
-    return templates.TemplateResponse("categories.html", {
-        "request": request,
-        "categories": categories_with_discipline,
-        "unassigned": unassigned,
-        "t_id": tournament_id
-    })
-
-
-
-@router.get("/view/{tournament_id}/registration", response_class=HTMLResponse)
-async def registration_page(
-    request: Request, 
-    tournament_id: int, 
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    # Сортируем по фамилии для удобства поиска в списке
-    result = await t_db.execute(
-        select(Athlete)
-        .options(
-            selectinload(Athlete.draft_assignments).selectinload(DraftAssignment.category),
-            selectinload(Athlete.team).selectinload(Team.draft_assignments).selectinload(DraftAssignment.category)
-        )
-    )
-    athletes = result.scalars().all()
-    result = await t_db.execute(select(Team).options(selectinload(Team.members)))
-    teams = result.scalars().all()
-    
-    unique_clubs = sorted(list(set(a.club for a in athletes if a.club)))
-    return templates.TemplateResponse("registration.html", {
-        "request": request,
-        "athletes": athletes,
-        "teams": teams,
-        "clubs": unique_clubs,
-        "t_id": tournament_id
-    })
-
-@router.get("/view/{tournament_id}/kata", response_class=HTMLResponse)
-async def kata_page(
-    request: Request, 
-    tournament_id: int, 
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    # Загружаем структуру: Категории -> Круги -> Оценки -> Данные атлета
-    result = await t_db.execute(
-        select(Category)
-        .options(
-            # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
-            selectinload(Category.rounds)
-            .selectinload(Round.scores)
-            .options(
-                # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
-                selectinload(Score.athlete),
-                selectinload(Score.team).selectinload(Team.members)
-            ),
-            # 3. Подгружаем справочник КАТА для выпадающих списков
-            selectinload(Category.kata_associations).selectinload(CategoryKata.kata)
-        )
-        .where(Category.discipline == "kata") 
-    )
-    categories = result.scalars().all()
-    to_delete = []
-
-    for category in categories:
-
-        for round_obj in category.rounds:
-            filtered_scores = []
-            for score in round_obj.scores:
-                if score.athlete is not None:
-                    if score.athlete.is_present:
-                        filtered_scores.append(score)
-                elif score.team is not None:
-                    if score.team.is_present:
-                        filtered_scores.append(score)
-            round_obj.scores = filtered_scores
-            if not filtered_scores:
-                to_delete.append(category)
-    for cat in to_delete:
-        categories.remove(cat)
-
-    return templates.TemplateResponse("kata.html", {
-        "request": request,
-        "categories": categories,
-        "t_id": tournament_id
-    })
 
 @router.get("/view/{tournament_id}/kata-change", response_class=HTMLResponse)
 async def kata_change(
@@ -392,25 +148,26 @@ async def kata_change(
         .order_by(Category.id)
     )
     categories = result.scalars().all()
+
     categories_data=[]
     for cat in categories:
         first_round = next((r for r in cat.rounds if r.scores), None)
         athletes = []
         if first_round:
             for s in sorted(first_round.scores, key=lambda x: getattr(x, 'position', 0) or 0):
-                if not s.athlete:
-                    continue
-                athletes.append({
-                    "score_id": s.id,
-                    "athlete_id": s.athlete_id,
-                    "name": (
-                        f"{(s.athlete.last_name or '').strip()} " 
-                        f"{(s.athlete.first_name or '').strip()} "
-                        f"{(s.athlete.middle_name or '').strip()} "
-                        ),
-                    "club": s.athlete.club or '',
-                    "position": getattr(s, 'position', 0) or 0,
-                })
+                if s.athlete:
+                    athletes.append({
+                        "score_id": s.id,
+                        "athlete_id": s.athlete_id,
+                        "name": (
+                            f"{(s.athlete.last_name or '').strip()} " 
+                            f"{(s.athlete.first_name or '').strip()} "
+                            f"{(s.athlete.middle_name or '').strip()} "
+                            ),
+                        "club": s.athlete.club or '',
+                        "position": getattr(s, 'position', 0) or 0,
+                        "is_present": s.athlete.is_present
+                    })
         categories_data.append({
             "id": cat.id,
             "name": cat.name,
@@ -424,28 +181,6 @@ async def kata_change(
         "t_id": tournament_id
     })
 
-@router.get("/view/{tournament_id}/kumite", response_class=HTMLResponse)
-async def kumite_page(
-    request: Request, 
-    tournament_id: int, 
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    result = await t_db.execute(
-        select(Category)
-        .where(Category.discipline == "kumite") 
-    )
-    categories = result.scalars().all()
-
-    data = defaultdict(list)
-    for category in categories:
-        data[category.tatami_number].append(category.to_dict())
-
-    print(data)
-    return templates.TemplateResponse("kumite_nav.html",{
-        "request": request,
-        "categories": data,
-        "tournament_id": tournament_id
-    })
 
 
 
@@ -522,106 +257,6 @@ async def finish_round_route(tournament_id: int, round_id: int, t_db: AsyncSessi
     return {"status": "success", "message": "Круг успешно завершен."}
 
 
-@router.get("/view/{tournament_id}/kumite/all", response_class=HTMLResponse)
-async def get_stream_page(
-    request: Request, 
-    tournament_id: int
-):
-    """
-    Открывает единую панель управления всеми матчами кумите.
-    Использует category_id=0 как сигнал для JS загружать весь поток.
-    """
-    return templates.TemplateResponse(
-        "kumite_all.html", 
-        {
-            "request": request, 
-            "tournament_id": tournament_id,
-            "category_id": 0  # Передаем 0 вместо "all"
-        }
-    )
-
-@router.get("/view/{tournament_id}/kumite/all/{tatami_number}", response_class=HTMLResponse)
-async def get_kumite_page(
-    request: Request, 
-    tournament_id: int,
-    tatami_number: int, 
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    
-    category_name = "ОБЩИЙ ПОТОК ТУРНИРА (Все категории)"
-    
-
-    # 2. Рендерим шаблон (убедитесь, что файл называется kumite_full.html или kumite.html)
-    return templates.TemplateResponse(
-        "kumite_all.html", 
-        {
-            "request": request, 
-            "tournament_id": tournament_id,
-            "tatami_number": tatami_number,
-            "category_name": category_name
-        }
-    )
-
-@router.get("/view/{tournament_id}/kumite/{category_id}", response_class=HTMLResponse)
-async def get_kumite_page(
-    request: Request, 
-    tournament_id: int,
-    category_id: int, 
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    # 1. Определяем название страницы
-        # Ищем конкретную категорию
-    result = await t_db.execute(select(Category).where(Category.id == category_id, Category.discipline == 'kumite'))
-    category = result.scalar_one_or_none()
-    
-    if not category:
-        return HTMLResponse(content="Категория не найдена", status_code=404)
-    category_name = category.name
-
-    # 2. Рендерим шаблон (убедитесь, что файл называется kumite_full.html или kumite.html)
-    return templates.TemplateResponse(
-        "kumite_all.html", 
-        {
-            "request": request, 
-            "tournament_id": tournament_id,
-            "category_id": category_id,
-            "category_name": category_name
-        }
-    )
-
-@router.get("/view/{tournament_id}/kumite/{category_id}/bracket", response_class=HTMLResponse)
-async def view_category_bracket(
-    request: Request, 
-    category_id: int, 
-    tournament_id: int,
-    t_db: AsyncSession = Depends(get_t_db)
-):
-    # 1. Получаем категорию и матчи
-    cat = await t_db.get(Category, category_id)
-    res = await t_db.execute(select(Match).where(Match.category_id == category_id).order_by(Match.number))
-    matches = res.scalars().all()
-
-    # 2. Собираем всех атлетов этой категории для имен
-    ath_res = await t_db.execute(select(Athlete).join(DraftAssignment).where(DraftAssignment.category_id == category_id))
-    athletes_map = {a.id: a.first_name for a in ath_res.scalars().all()}
-
-    # 3. Группируем по раундам
-    bracket_data = {}
-    for m in matches:
-        if m.round_number not in bracket_data: bracket_data[m.round_number] = []
-        bracket_data[m.round_number].append(m.to_dict())
-    
-    max_r = max(bracket_data.keys()) if bracket_data else 1
-
-    return templates.TemplateResponse("kumite_view.html", {
-        "request": request,
-        "category": cat,
-        "bracket": bracket_data,
-        "athletes": athletes_map,
-        "max_round": max_r,
-        "tournament_id": tournament_id
-    })
-
 @router.get(
     "/view/{tournament_id}/kumite/{category_id}/change",
     response_class=HTMLResponse,
@@ -672,69 +307,7 @@ async def view_category_change(
         "t_id": tournament_id,
     })
 
-@router.get("/view/{tournament_id}/results", response_class=HTMLResponse)
-async def get_tournament_results_page(request: Request, tournament_id: int, t_db: AsyncSession = Depends(get_t_db),
-    main_db: AsyncSession = Depends(get_db)):
-    # 1. Получаем данные турнира
-    tournament_res = await main_db.execute(select(Tournament).where(Tournament.id == tournament_id))
-    tournament = tournament_res.scalar_one_or_none()
-    
-    if not tournament:
-        raise HTTPException(status_code=404, detail="Турнир не найден")
 
-    # 2. Получаем категории вместе с победителями и данными атлетов (через связи)
-    # Используем selectinload для загрузки списка победителей и joinedload для данных атлета
-    result = await t_db.execute(
-        select(Category)
-        .options(
-            selectinload(Category.winners)
-            .joinedload(Winner.athlete)
-        )
-    )
-    categories_list = result.scalars().all()
-    
-    formatted_categories = []
-    
-    for cat in categories_list:
-        # Пропускаем категории, где еще нет зафиксированных победителей
-        if not cat.winners:
-            continue
-            
-        # Подготавливаем структуру для Jinja2
-        winners_data = {
-            "gold": None,
-            "silver": None,
-            "bronze": None  # В шаблоне ожидается объект, если нужно 2 бронзы — см. примечание ниже
-        }
-        
-        for w in cat.winners:
-            athlete_info = {
-                "first_name": w.athlete.first_name,
-                "last_name": w.athlete.last_name,
-                "club": w.athlete.club
-            }
-            
-            if w.place == 1:
-                winners_data["gold"] = athlete_info
-            elif w.place == 2:
-                winners_data["silver"] = athlete_info
-            elif w.place == 3:
-                # Если в кумите два 3-х места, берем первого попавшегося 
-                # (или можно изменить шаблон под список)
-                winners_data["bronze"] = athlete_info
-
-        formatted_categories.append({
-            "name": cat.name,
-            "athletes_count": 5, # Убедитесь, что это поле есть в модели
-            "winners": winners_data
-        })
-
-    # 3. Рендерим страницу
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "tournament": tournament,
-        "categories": formatted_categories
-    })
 
 @router.post("/view/{tournament_id}/all_registr")
 async def set_all_present(tournament_id: int, t_db: AsyncSession = Depends(get_t_db)):

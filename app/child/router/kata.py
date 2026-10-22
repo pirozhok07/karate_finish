@@ -3,13 +3,14 @@ from app.child.services.logic import get_promotion_count
 from app.child.services.redirect import promote_to_next_round
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.dependencies import require_admin, require_secretary_or_admin
 from app.database import get_t_db
 from app.child.models.score import Score
 from app.child.schemas.score import ScoreUpdate
 from sqlalchemy import select, delete
 from fastapi.responses import RedirectResponse
 
-router = APIRouter(prefix="/{tournament_id}/kata", tags=["Kata"])
+router = APIRouter(prefix="/{tournament_id}/kata", tags=["Kata"], dependencies=[Depends(require_secretary_or_admin)])
 
 @router.patch("/save/{p_id}")
 async def save_performance_score(
@@ -21,7 +22,6 @@ async def save_performance_score(
     score_record = await t_db.get(Score, p_id)
     if not score_record:
         raise HTTPException(status_code=404, detail="Запись не найдена")
-    print(data)
     # 2. Собираем оценки в список для расчета
     all_scores = [data.s1, data.s2, data.s3, data.s4, data.s5]
     
