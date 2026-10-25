@@ -213,8 +213,8 @@ async def get_kata_page(
     )
     categories = result.scalars().all()
 
-    for category in categories:
-        for round in 
+    # for category in categories:
+    #     for round in 
 
     return templates.TemplateResponse("kata.html", {
         "request": request,

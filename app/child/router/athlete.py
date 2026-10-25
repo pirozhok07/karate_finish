@@ -6,7 +6,7 @@ from app.child.models.team import Team
 from app.child.schemas.athlete import AthleteBase, AthleteCreate, AthleteGet, AthleteRead, AthleteUpdate
 from app.child.models.athlete import Athlete
 from app.child.services.excel import parse_athletes_excel
-from app.child.services.logic import find_category_id, sync_team_presence
+from app.child.services.logic import find_category_id
 from app.core.dependencies import require_admin
 from app.database import create_tournament_db, get_db, get_t_db, get_tournament_session
 from app.tournament_main.model import Tournament
@@ -24,6 +24,29 @@ DBSession = Annotated[AsyncSession, Depends(get_t_db)]
 UpFile = Annotated[UploadFile, File(...)]
 
 router = APIRouter(prefix="/{tournament_id}/athletes", tags=["Athlete"], dependencies=[Depends(require_admin)])
+
+@router.put(
+    "/team/{team_id}",
+    summary="Обновить данные команды"
+)
+async def update_team(
+    team_id: int, 
+    team_data: AthleteUpdate,
+    t_db: DBSession
+):
+    team = await t_db.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    update_date = team_data.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in update_date.items():
+        if hasattr(team, key):
+            setattr(team, key, value)
+
+    
+    await t_db.commit()
+    await t_db.refresh(team)
+
     
 @router.get(
     "/{athlete_id}",
@@ -118,8 +141,8 @@ async def update_athlete(
     # 2. Обновляем статус
     
     # 3. Синхронизация команд (ваша логика)
-    updated_teams = await sync_team_presence(t_db, athlete_id) 
-    team_statuses = {t.id: t.is_present for t in updated_teams}
+    # updated_teams = await sync_team_presence(t_db, athlete_id) 
+    # team_statuses = {t.id: t.is_present for t in updated_teams}
 
     await t_db.commit()
     await t_db.refresh(athlete)
@@ -129,7 +152,7 @@ async def update_athlete(
     response_data = {
         **athlete.__dict__,  # Тут будут id, last_name, first_name и т.д.
         "status": "success",
-        "team_statuses": team_statuses
+        # "team_statuses": team_statuses
     }
     
     return response_data

@@ -126,28 +126,28 @@ def get_wkf_sort_key(p):
 #     await t_db.commit()
 #     return limit
 
-async def sync_team_presence(t_db: AsyncSession, athlete_id: int):
-    # 1. Находим все команды, где участвует этот атлет
-    # Используем join или связь, если она настроена
-    result = await t_db.execute(
-        select(Team)
-        .join(Team.members)
-        .where(Athlete.id == athlete_id)
-        .options(selectinload(Team.members)) # Подгружаем состав сразу
-    )
-    teams = result.scalars().all()
+# async def sync_team_presence(t_db: AsyncSession, athlete_id: int):
+#     # 1. Находим все команды, где участвует этот атлет
+#     # Используем join или связь, если она настроена
+#     result = await t_db.execute(
+#         select(Team)
+#         .join(Team.members)
+#         .where(Athlete.id == athlete_id)
+#         .options(selectinload(Team.members)) # Подгружаем состав сразу
+#     )
+#     teams = result.scalars().all()
     
-    updated_teams = []
+#     updated_teams = []
     
-    for team in teams:
-        # 2. Проверяем: все ли члены этой конкретной команды "явились"
-        # Если хотя бы один False — команда "не явилась"
-        all_present = all(m.is_present for m in team.members)
+#     for team in teams:
+#         # 2. Проверяем: все ли члены этой конкретной команды "явились"
+#         # Если хотя бы один False — команда "не явилась"
+#         all_present = all(m.is_present for m in team.members)
         
-        # 3. Если статус изменился — обновляем в базе
-        if team.is_present != all_present:
-            team.is_present = all_present
-            updated_teams.append(team)
+#         # 3. Если статус изменился — обновляем в базе
+#         if team.is_present != all_present:
+#             team.is_present = all_present
+#             updated_teams.append(team)
             
-    # Мы не делаем commit тут, его сделает основная функция update_athlete
-    return updated_teams
+#     # Мы не делаем commit тут, его сделает основная функция update_athlete
+#     return updated_teams
