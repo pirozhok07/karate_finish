@@ -30,7 +30,7 @@ class AthleteRead(AthleteBase):
     id: int
     status: str
     is_present: bool
-    team_statuses: Dict[int, bool]
+    # team_statuses: Dict[int, bool]
 
     
 

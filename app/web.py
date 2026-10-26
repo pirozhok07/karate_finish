@@ -155,6 +155,15 @@ async def kata_change(
         athletes = []
         if first_round:
             for s in sorted(first_round.scores, key=lambda x: getattr(x, 'position', 0) or 0):
+                if s.team:
+                    athletes.append({
+                        "score_id": s.id,
+                        "athlete_id": s.team_id,
+                        "name": f"{(s.team.name or '').strip()}",
+                        "club": s.team.club or '',
+                        "position": getattr(s, 'position', 0) or 0,
+                        "is_present": s.team.is_present
+                    })
                 if s.athlete:
                     athletes.append({
                         "score_id": s.id,

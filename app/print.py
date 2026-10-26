@@ -426,7 +426,8 @@ async def export_athletes_excel(
     )
 
 
-@router.get("/kumite-print", response_class=HTTPResponse)
+# @router.get("/kumite-print", response_class=HTTPResponse)
+@router.get("/kumite-print")
 async def print_category_bracket(
     request: Request,  
     tournament_id: int,

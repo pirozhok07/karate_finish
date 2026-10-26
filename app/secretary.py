@@ -213,6 +213,7 @@ async def get_kata_page(
     )
     categories = result.scalars().all()
 
+<<<<<<< HEAD
     used_katas = {}
 
     for category in categories:
@@ -227,6 +228,10 @@ async def get_kata_page(
                             used_katas[athlete_id].add(score.performance_kata)
     
     print(used_katas)
+=======
+    # for category in categories:
+    #     for round in 
+>>>>>>> 75dd2e8c4409d3ffb555d5777b945cd721db0a2e
 
     return templates.TemplateResponse("kata.html", {
         "request": request,

@@ -9,7 +9,7 @@ from app.child.models.users import User
 from app.child.schemas.athlete import AthleteBase, AthleteCreate, AthleteGet, AthleteRead, AthleteUpdate
 from app.child.models.athlete import Athlete
 from app.child.services.excel import parse_athletes_excel
-from app.child.services.logic import find_category_id, sync_team_presence
+from app.child.services.logic import find_category_id
 from app.core.dependencies import create_session_token, get_current_user_optional
 from app.core.secury import verify_password
 from app.database import create_tournament_db, get_db, get_t_db, get_tournament_session
