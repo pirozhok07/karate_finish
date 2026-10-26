@@ -103,15 +103,19 @@
 
                             <option value="">---</option>
                             {% for assoc in cat.kata_associations %}
+                            {% set past_katas = used_katas.get(p.athlete.id, []) %}
                             {# Логика фильтрации: показываем ката, если оно для всех кругов (0), #}
                             {# либо если лимит совпадает с номером текущего круга (rnd.round_number) #}
                                 {% if assoc.round_limit == 0 or 
                                     (assoc.round_limit == 1 and rnd.round_number == 1) or 
                                     (assoc.round_limit == 2 and (rnd.round_number == 2 or rnd.round_number == 3)) %}
                                     
+                                    {% set is_past = assoc.kata.name in past_katas %}
+                                    {% set is_current = (p.performance_kata == assoc.kata.name) %}
                                     <option value="{{ assoc.kata.name }}" 
-                                            {% if p.performance_kata == assoc.kata.name %}selected{% endif %}
-                                            style="{{ 'color: #af6400; font-weight: bold;' if assoc.kata.is_advanced else '' }}">
+                                            {% if is_current %} selected {% endif %}
+                                            {% if is_past and not is_current %} disabled {% endif %}
+                                            style="{% if is_past and not is_current  %}color: #ff0000;{% elif assoc.kata.is_advanced %}color: #af6400; font-weight: bold; {% endif %}">
                                         {{ assoc.kata.name }} {{ '★' if assoc.kata.is_advanced else '' }}
                                     </option>
                                     

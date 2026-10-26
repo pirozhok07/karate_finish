@@ -213,13 +213,26 @@ async def get_kata_page(
     )
     categories = result.scalars().all()
 
+    used_katas = {}
+
     for category in categories:
-        for round in 
+        for round in category.rounds:
+            for score in round.scores:
+                if score.athlete_id:
+                    athlete_id = score.athlete_id 
+                    if athlete_id:
+                        if athlete_id not in used_katas:
+                            used_katas[athlete_id] = set()
+                        if score.performance_kata:
+                            used_katas[athlete_id].add(score.performance_kata)
+    
+    print(used_katas)
 
     return templates.TemplateResponse("kata.html", {
         "request": request,
         "categories": categories,
         "t_id": tournament_id,
+        "used_katas": used_katas
     })
 
 @router.get("/view/{tournament_id}/kata/{category_id}", response_class=HTMLResponse)
