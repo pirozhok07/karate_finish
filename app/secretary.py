@@ -213,7 +213,6 @@ async def get_kata_page(
     )
     categories = result.scalars().all()
 
-<<<<<<< HEAD
     used_katas = {}
 
     for category in categories:
@@ -227,11 +226,6 @@ async def get_kata_page(
                         if score.performance_kata:
                             used_katas[athlete_id].add(score.performance_kata)
     
-    print(used_katas)
-=======
-    # for category in categories:
-    #     for round in 
->>>>>>> 75dd2e8c4409d3ffb555d5777b945cd721db0a2e
 
     return templates.TemplateResponse("kata.html", {
         "request": request,
@@ -267,10 +261,23 @@ async def get_kata_category_page(
     )
     category = result.scalars().one_or_none()
 
+    used_katas = {}
+
+    for round in category.rounds:
+        for score in round.scores:
+            if score.athlete_id:
+                athlete_id = score.athlete_id 
+                if athlete_id:
+                    if athlete_id not in used_katas:
+                        used_katas[athlete_id] = set()
+                    if score.performance_kata:
+                        used_katas[athlete_id].add(score.performance_kata)
+
     return templates.TemplateResponse("kata_category.html", {
         "request": request,
         "category": category,
-        "t_id": tournament_id
+        "t_id": tournament_id,
+        "used_katas": used_katas
     })
 
 

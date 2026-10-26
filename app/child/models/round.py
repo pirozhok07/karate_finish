@@ -10,6 +10,8 @@ class Round(TournamentBase):
     round_number: Mapped[int] = mapped_column(default=1) # 1, 2, 3...
     is_finished: Mapped[bool] = mapped_column(default=False)
     is_tie_break: Mapped[bool] = mapped_column(default=False)
+    promote_count: Mapped[int] = mapped_column(nullable=True) 
+    is_final_tie_break: Mapped[bool] = mapped_column(default=False)
     
     parent_round_id: Mapped[Optional[int]] = mapped_column(ForeignKey("rounds.id")) 
     category: Mapped["Category"] = relationship(back_populates="rounds")
