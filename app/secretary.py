@@ -441,11 +441,16 @@ async def get_tournament_results_page(request: Request, tournament_id: int, t_db
         }
         
         for w in cat.winners:
-            athlete_info = {
-                "first_name": w.athlete.first_name,
-                "last_name": w.athlete.last_name,
-                "club": w.athlete.club
-            }
+            if w.athlete:
+                athlete_info = {
+                    "name": f'{w.athlete.first_name} {w.athlete.last_name}',
+                    "club": w.athlete.club
+                }
+            if w.team:
+                athlete_info = {
+                    "name": w.team.name,
+                    "club": w.team.club
+                }
             
             if w.place == 1:
                 winners_data["gold"] = athlete_info

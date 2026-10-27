@@ -870,7 +870,6 @@ async def export_tournament_info(
     data_mapping = {
         'E8': f'{tournament.type} "{tournament.title}"',
         'E9': tournament.description,
-        'E10': tournament.description,
         'E11': tournament.event_date.strftime("%d.%m.%Y"),
         # 'E12': tournament.adress,
         'E13': tournament.judge,
