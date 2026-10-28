@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import create_tournament_db, get_db, get_t_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select, asc, desc, func, extract, update
+from sqlalchemy import delete, select, asc, desc, func, extract, update, and_, or_
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
@@ -84,7 +84,7 @@ async def view_categories(
     # 2. Загружаем категории с полной подгрузкой атлетов и команд
     result = await t_db.execute(
         select(Category).options(
-            selectinload(Category.draft_assignments).options(
+            selectinload(Category.draft_assignments.and_(or_(DraftAssignment.team.has(Team.is_active == True), DraftAssignment.athlete.has(Athlete.is_active == True)))).options(
                 selectinload(DraftAssignment.athlete),
                 selectinload(DraftAssignment.team).selectinload(Team.members)
             )
@@ -107,7 +107,7 @@ async def view_categories(
         count_present = 0
         for it in cat.draft_assignments:
             person = it.athlete if it.athlete else it.team
-            if person.is_present:
+            if person is not None and person.is_present:
                 count_present +=1
         data = {
             "category": cat, 
@@ -199,7 +199,7 @@ async def get_kata_page(
         .options(
             # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
             selectinload(Category.rounds)
-            .selectinload(Round.scores)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
             .options(
                 # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),
@@ -247,7 +247,7 @@ async def get_kata_category_page(
         .options(
             # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
             selectinload(Category.rounds)
-            .selectinload(Round.scores)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
             .options(
                 # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),

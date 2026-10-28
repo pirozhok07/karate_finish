@@ -19,6 +19,7 @@ class AthleteBase(BaseModel):
     club: str | None = None
     coach: str | None = None
     is_present: bool = False
+    is_active: bool = True
     registration_status: str = "pending"
 
 # Схема для POST-запроса (что присылает клиент)
@@ -30,6 +31,7 @@ class AthleteRead(AthleteBase):
     id: int
     status: str
     is_present: bool
+    is_active: bool
     # team_statuses: Dict[int, bool]
 
     
@@ -49,6 +51,7 @@ class AthleteUpdate(BaseModel):
     middle_name: str | None = None
     birth_date: date | None = None
     is_present: bool | None = None
+    is_active: bool | None = None
     registration_status: str | None = None
     gender: str | None = None
     weight_preview: float | None = None

@@ -603,7 +603,7 @@ async def generate_all_kumite_horizontal(tournament_id: int, t_db: AsyncSession)
 async def fill_tournament_summary(t_db):
     # 1. Загружаем только подтвержденных (явившихся) участников
     result = await t_db.execute(
-        select(Athlete).where(Athlete.is_present == True)
+        select(Athlete).where(Athlete.is_active == True)
     )
     athletes = result.scalars().all()
     

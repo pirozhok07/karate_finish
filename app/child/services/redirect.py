@@ -6,7 +6,7 @@ from app.child.models.round import Round
 from app.child.models.score import Score
 from app.child.models.team import Team
 from app.child.models.winner import Winner
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.child.models.draft import DraftAssignment
@@ -158,7 +158,8 @@ async def promote_to_next_round(t_db: AsyncSession, round_id: int):
     count_res = await t_db.execute(
         select(func.count(Score.id))
         .join(Round)
-        .where(Round.category_id == cat_id, Round.round_number == 1)
+        .where(Round.category_id == cat_id, Round.round_number == 1,
+               or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True)))
     )
     initial_count = count_res.scalar() or 0
 

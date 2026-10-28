@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import create_tournament_db, get_db, get_t_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select, asc, desc, func, extract, update
+from sqlalchemy import delete, select, asc, desc, func, extract, update, and_, or_
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
@@ -134,7 +134,7 @@ async def get_kata_page(
         .options(
             # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
             selectinload(Category.rounds)
-            .selectinload(Round.scores)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
             .options(
                 # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),
@@ -167,7 +167,7 @@ async def get_kata_category_page(
         .options(
             # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
             selectinload(Category.rounds)
-            .selectinload(Round.scores)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
             .options(
                 # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),

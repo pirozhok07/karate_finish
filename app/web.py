@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import create_tournament_db, get_db, get_t_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select, asc, desc, func, extract, update
+from sqlalchemy import delete, select, asc, desc, func, extract, update, and_, or_
 from sqlalchemy.orm import selectinload
 from fastapi.responses import RedirectResponse
 
@@ -41,6 +41,7 @@ async def view_tournament(
     # 1. Получаем параметры фильтрации
     params = request.query_params
     search = params.get("search", "").strip().lower()
+    gender_filter = params.get("gender", "")
     club_filter = params.get("club", "")
     age_filter = params.get("age", "")
     sort_by = params.get("sort", "last_name")
@@ -65,6 +66,9 @@ async def view_tournament(
     if search:
         filtered_athletes = [a for a in filtered_athletes if search in a.last_name.lower()]
     
+    if gender_filter:
+        filtered_athletes = [a for a in filtered_athletes if a.gender == gender_filter]
+
     if club_filter:
         filtered_athletes = [a for a in filtered_athletes if a.club == club_filter]
         # Команды тоже фильтруем по клубу
@@ -137,7 +141,7 @@ async def kata_change(
         .options(
             # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
             selectinload(Category.rounds)
-            .selectinload(Round.scores)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
             .options(
                 # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),

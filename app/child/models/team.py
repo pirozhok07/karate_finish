@@ -13,6 +13,7 @@ class Team(TournamentBase):
     
     # ДОБАВЬТЕ ЭТО ПОЛЕ:
     is_present: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(default=True) # Отметка 
 
     # Связь со спортсменами (3 человека)
     members: Mapped[list["Athlete"]] = relationship(secondary="team_members", primaryjoin="Team.id == team_members.c.team_id", secondaryjoin="Athlete.id == team_members.c.athlete_id", back_populates="team")

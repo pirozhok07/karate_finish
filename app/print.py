@@ -583,14 +583,29 @@ async def export_scores_excel(
 ):
     # 1. Загружаем данные турнира и категорий со всеми раундами
     # Должна быть связь: Category -> Rounds -> Scores
+    # result = await t_db.execute(
+    #     select(Category).where(Category.discipline == "kata").options(
+    #         selectinload(Category.rounds).selectinload(Round.scores).options(
+    #         # 3. А уже ИЗ ОЦЕНОК подгружаем Атлета и Команду с её составом
+    #         selectinload(Score.athlete),
+    #         selectinload(Score.team).selectinload(Team.members)
+    #     ),
+    #     )
+    # )
     result = await t_db.execute(
-        select(Category).where(Category.discipline == "kata").options(
-            selectinload(Category.rounds).selectinload(Round.scores).options(
-            # 3. А уже ИЗ ОЦЕНОК подгружаем Атлета и Команду с её составом
-            selectinload(Score.athlete),
-            selectinload(Score.team).selectinload(Team.members)
-        ),
+        select(Category)
+        .options(
+            # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
+            selectinload(Category.rounds)
+            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
+            .options(
+                # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
+                selectinload(Score.athlete),
+                selectinload(Score.team).selectinload(Team.members)
+            ),
         )
+        .where(Category.discipline == "kata") 
+        .order_by(Category.id, )
     )
     categories = result.scalars().all()
     
@@ -710,7 +725,10 @@ async def export_scores_excel(
                         cell.border = Border(left=l, right=r_s, top=t, bottom=b)
 
                 current_row += 2 
-
+                scores = sorted(sub_rnd.scores, key=lambda score: (
+                    score.position is None,
+                    score.position if score.position is not None else float("inf")
+                ))
                 # --- 4. Данные участников ---
                 for idx, s in enumerate(sub_rnd.scores, 1):
                     # Логика определения имени участника (Личник или Команда)

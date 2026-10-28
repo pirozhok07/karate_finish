@@ -18,6 +18,7 @@ class Athlete(TournamentBase):
     club: Mapped[str | None] = mapped_column()
     coach: Mapped[str | None] = mapped_column()        # Тренер
     is_present: Mapped[bool] = mapped_column(default=False) # Отметка о регистрации в день турнира
+    is_active: Mapped[bool] = mapped_column(default=True) # Отметка 
     registration_status: Mapped[str | None] = mapped_column(default="pending") # "confirmed", "absent"
     
     is_kata: Mapped[bool] = mapped_column(default=False) 

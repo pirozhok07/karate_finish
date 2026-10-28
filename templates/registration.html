@@ -57,6 +57,7 @@
 
         .reg-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; transition: 0.3s; }
         .reg-table tr.present td { background-color: #f0fff4 !important; }
+        .reg-table tr.disactive td { background-color: #fff3f0 !important; }
         .reg-table tr.hidden { display: none; }
 
         /* Switch */
@@ -159,15 +160,17 @@
                 <th>Команда / Клуб</th>
                 <th>Состав</th>
                 <th style="text-align: right;">Действия</th>
+                <th width="80" onclick="sortTable(0)">ДЛЯ ПУЛЬ</th>
             </tr>
         </thead>
         <tbody>
             {% for team in teams %}
-            <tr class="{% if team.is_present %}present{% endif %}" id="team-row-{{ team.id }}" data-present="{{ team.is_present }}">
+            <tr class="{% if team.is_present %}present{% endif %} {% if not team.is_active %}disactive{% endif %}" id="team-row-{{ team.id }}" data-present="{{ team.is_present }}">
                 <td>
                     <label class="switch">
-                        <input type="checkbox" {% if team.is_present %}checked{% endif %}
-                               onchange="toggleTeamPresence({{ t_id }}, {{ team.id }}, this)">
+                        <input id="check-present-{{ team.id }}" type="checkbox" {% if team.is_present %}checked{% endif %}
+                                {% if not team.is_active %}disabled{% endif %}
+                               onchange="toggleTeamPresence('present', {{ t_id }}, {{ team.id }}, this)">
                         <span class="slider"></span>
                     </label>
                 </td>
@@ -186,6 +189,13 @@
                 </td>
                 <td style="text-align: right;">
                     <button class="btn-outline" onclick="deleteTeam({{ team.id }})" style="color: var(--aka); border: none; background: none;">🗑</button>
+                </td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" {% if team.is_active %}checked{% endif %}
+                               onchange="toggleTeamPresence('active',{{ t_id }}, {{ team.id }}, this)">
+                        <span class="slider"></span>
+                    </label>
                 </td>
             </tr>
             {% else %}
@@ -208,15 +218,17 @@
                 <th onclick="sortTable(5)" data-type="number">ВЕС(ФАКТ)</th>
                 <th data-type="number">КАТЕГОРИИ</th>
                 <th>РАЗРЯД</th>
+                <th width="80" onclick="sortTable(0)">ДЛЯ ПУЛЬ</th>
             </tr>
         </thead>
         <tbody id="tableBody">
             {% for a in athletes %}
-            <tr class="{% if a.is_present %}present{% endif %}" id="row-{{ a.id }}" data-present="{% if a.is_present %}true{% else %}false{% endif %}">
+            <tr class="{% if a.is_present %}present{% endif %} {% if not a.is_active %}disactive{% endif %}" id="row-{{ a.id }}" data-present="{% if a.is_present %}true{% else %}false{% endif %}">
                 <td>
                     <label class="switch">
-                        <input type="checkbox" {% if a.is_present %}checked{% endif %}
-                               onchange="togglePresence({{ t_id }}, {{ a.id }}, this)">
+                        <input id="check-present-{{ a.id }}" type="checkbox" {% if a.is_present %}checked{% endif %}
+                               {% if not a.is_active  %}disabled{% endif %}
+                               onchange="togglePresence('present',{{ t_id }}, {{ a.id }}, this)">
                         <span class="slider"></span>
                     </label>
                 </td>
@@ -253,6 +265,13 @@
                     {% endfor %}
                 </td>
                 <td><span style="font-size: 0.7rem; color: var(--gray)">{{ a.rank_sport or '' }}</span></td>
+                <td>
+                    <label class="switch">
+                        <input id="check-active-{{ a.id }}" type="checkbox" {% if a.is_active %}checked{% endif %}
+                               onchange="togglePresence('active',{{ t_id }}, {{ a.id }}, this)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -283,35 +302,55 @@
     })
 
     let currentFilter = 'all';
-    async function toggleTeamPresence(tId, teamId, checkbox) {
+    async function toggleTeamPresence(parametr, tId, teamId, checkbox) {
         const isPresent = checkbox.checked;
         const teamRow = document.getElementById(`team-row-${teamId}`);
-        
-            console.log(1)
+        let body = {};
+        if (parametr == 'present') {body = {is_present: isPresent}} else {body = {is_active: isPresent}}
         try {
-            console.log(2)
             const res = await fetch(`/${tId}/athletes/team/${teamId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_present: isPresent })
+                body: JSON.stringify(body)
             });
+            if (res.ok) {
+                const data = await res.json();
+                // 1. Обновляем строку атлета в основной таблице
+                teamRow.classList.toggle('present', isPresent);
+                teamRow.setAttribute('data-present', isPresent ? "true" : "false");
+                if (parametr == 'active') {
+                    const checkPresent = document.getElementById(`check-present-${teamId}`);
+                    checkPresent.disabled = !isPresent
+                    teamRow.classList.toggle('disactive', !isPresent);
+                    
+                }
+
+                
+
+                // 3. Общие обновления интерфейса
+                if (typeof updateStats === 'function') updateStats();
+                if (typeof applyAllFilters === 'function') applyAllFilters();
+
+            } else {
+                throw new Error("Ошибка сервера");
+            }
         }catch (e) { 
-            console.log(3)
             console.error("Ошибка регистрации:", e); 
             checkbox.checked = !isPresent; // Возвращаем галку назад при ошибке
             alert("Не удалось сохранить изменения");
         }
     }
  
-    async function togglePresence(tId, athleteId, checkbox) {
+    async function togglePresence(parametr, tId, athleteId, checkbox) {
         const isPresent = checkbox.checked;
         const athleteRow = document.getElementById(`row-${athleteId}`);
-        
+        let body = {};
+        if (parametr == 'present') {body = {is_present: isPresent}} else {body = {is_active: isPresent}}
         try {
             const res = await fetch(`/${tId}/athletes/${athleteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_present: isPresent })
+                body: JSON.stringify(body)
             });
 
             if (res.ok) {
@@ -320,6 +359,12 @@
                 // 1. Обновляем строку атлета в основной таблице
                 athleteRow.classList.toggle('present', isPresent);
                 athleteRow.setAttribute('data-present', isPresent ? "true" : "false");
+                if (parametr == 'active') {
+                    const checkPresent = document.getElementById(`check-present-${athleteId}`);
+                    checkPresent.disabled = !isPresent
+                    athleteRow.classList.toggle('disactive', !isPresent);
+                    
+                }
 
                 // 2. ОБНОВЛЯЕМ КОМАНДЫ на основе данных от сервера (data.team_statuses)
                 if (data.team_statuses) {
