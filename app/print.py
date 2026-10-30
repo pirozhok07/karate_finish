@@ -581,31 +581,22 @@ async def export_scores_excel(
     t_db: AsyncSession = Depends(get_t_db),
     main_db: AsyncSession = Depends(get_db)
 ):
-    # 1. Загружаем данные турнира и категорий со всеми раундами
-    # Должна быть связь: Category -> Rounds -> Scores
-    # result = await t_db.execute(
-    #     select(Category).where(Category.discipline == "kata").options(
-    #         selectinload(Category.rounds).selectinload(Round.scores).options(
-    #         # 3. А уже ИЗ ОЦЕНОК подгружаем Атлета и Команду с её составом
-    #         selectinload(Score.athlete),
-    #         selectinload(Score.team).selectinload(Team.members)
-    #     ),
-    #     )
-    # )
     result = await t_db.execute(
         select(Category)
         .options(
-            # 1. Загружаем цепочку: Категория -> Раунды -> Оценки
+            selectinload(Category.winners),
             selectinload(Category.rounds)
-            .selectinload(Round.scores.and_(or_(Score.team.has(Team.is_active == True), Score.athlete.has(Athlete.is_active == True))))
+            .selectinload(Round.scores.and_(
+                or_(Score.team.has(Team.is_active == True), 
+                    Score.athlete.has(Athlete.is_active == True))
+            ))
             .options(
-                # 2. Внутри оценок подгружаем и атлетов, и команды с их составом
                 selectinload(Score.athlete),
                 selectinload(Score.team).selectinload(Team.members)
             ),
         )
         .where(Category.discipline == "kata") 
-        .order_by(Category.id, )
+        .order_by(Category.id)
     )
     categories = result.scalars().all()
     
@@ -730,7 +721,7 @@ async def export_scores_excel(
                     score.position if score.position is not None else float("inf")
                 ))
                 # --- 4. Данные участников ---
-                for idx, s in enumerate(sub_rnd.scores, 1):
+                for idx, s in enumerate(scores, 1):
                     # Логика определения имени участника (Личник или Команда)
                     if s.team_id and s.team:
                         # Формируем строку: Название команды + Фамилии участников в скобках
@@ -747,7 +738,7 @@ async def export_scores_excel(
                         s.performance_kata or "",
                         s.s1, s.s2, s.s3, s.s4, s.s5,
                         s.total_score
-        ]
+                    ]
                     if rnd_idx == 3:
                         row_data.append(s.place if s.place < 4 else "")
 
