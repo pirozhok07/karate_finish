@@ -448,7 +448,7 @@ async def generate_all_kumite_horizontal(tournament_id: int, t_db: AsyncSession)
             .options(selectinload(DraftAssignment.athlete),selectinload(DraftAssignment.category))
             .where(DraftAssignment.category_id != None)
             .where(Category.discipline == "kumite")
-            .where(Athlete.is_present == 1)
+            .where(Athlete.is_active == 1)
         )
     draft_persons = result.scalars().all()
 

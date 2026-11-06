@@ -70,7 +70,25 @@ async def generate_all(tournament_id: int, data: List[TatamiNumberCreate], t_db:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
+@router.post("/generate-all-pulls")
+async def generate_all(tournament_id: int, t_db: AsyncSession = Depends(get_t_db)):
+    # Удаляем старые матчи кумите, если они были
+    try:
+        await t_db.execute(delete(Match))
+        await generate_all_kumite_horizontal(tournament_id, t_db)
+        # await rangeCategoriesForTatami(data, t_db)
+        # await updateMatchesNumbers(t_db)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "ok",
+                "redirect_url": f"/view/{tournament_id}/kumite"
+                }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 # 1. Генерация первого круга сетки
 @router.post("/generate/{category_id}")
 async def generate_matches(category_id: int, t_db: AsyncSession = Depends(get_t_db)):

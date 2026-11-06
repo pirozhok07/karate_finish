@@ -275,6 +275,9 @@
         </div>
         <div style="display: flex; gap: 10px;">
             <a href="/view/{{ t_id }}" class="btn btn-outline">← К ТУРНИРУ</a>
+            <form action="/{{ t_id }}/kumite/generate-all-pulls" method="post" style="margin:0;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Это создаст официальные протоколы. Продолжить?')">Пули</button>
+            </form>
             <form action="/{{ t_id }}/category/final-assign" method="post" style="margin:0;">
                 <button type="submit" class="btn btn-danger" onclick="return confirm('Это создаст официальные протоколы. Продолжить?')">Запустить Ката</button>
             </form>
